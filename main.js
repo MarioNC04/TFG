@@ -173,24 +173,40 @@ class VoiceKeywordDetector {
             return this.setupWSLMicrophone();
         } else {
             console.log('🐧 Sistema Linux detectado - configuración para Raspberry Pi');
-            
-            let micConfig = {
+
+            const configuredDevice = (config.audioSettings && config.audioSettings.device) || 'default';
+            const baseMicConfig = {
                 rate: config.audioSettings.sampleRate,
                 channels: config.audioSettings.channels,
                 debug: false,
                 // En modo manual (ENTER para parar), evitar auto-stop por silencio.
                 exitOnSilence: 0,
-                silence: '2.0',
-                device: config.audioSettings.device || 'plughw:1,0'
+                silence: '2.0'
             };
-            
-            try {
+
+            const tryCreateMic = (deviceName) => {
+                const micConfig = { ...baseMicConfig, device: deviceName };
                 this.micInstance = mic(micConfig);
                 this.micInputStream = this.micInstance.getAudioStream();
-                console.log('✅ Micrófono configurado correctamente');
+                console.log(`✅ Micrófono configurado con device: ${deviceName}`);
+            };
+
+            try {
+                tryCreateMic(configuredDevice);
             } catch (error) {
-                console.error('❌ Error configurando micrófono:', error.message);
-                throw error;
+                console.error(`❌ Error con device '${configuredDevice}':`, error.message);
+
+                if (configuredDevice !== 'default') {
+                    console.log('🔄 Reintentando con device por defecto de ALSA: default');
+                    try {
+                        tryCreateMic('default');
+                    } catch (fallbackError) {
+                        console.error('❌ Error también con device default:', fallbackError.message);
+                        throw fallbackError;
+                    }
+                } else {
+                    throw error;
+                }
             }
         }
     }

@@ -14,7 +14,7 @@
   "audioSettings": {
     "sampleRate": 16000,
     "channels": 1,
-    "device": "plughw:1,0",
+    "device": "default",
     "format": "S16_LE"
   },
   
