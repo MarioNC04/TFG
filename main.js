@@ -380,7 +380,7 @@ class VoiceKeywordDetector {
         }
 
         this.isSpeaking = true;
-        const speed = Number(config.ttsSettings?.speed || 150);
+        const speed = Number((config.ttsSettings && config.ttsSettings.speed) || 150);
         const tts = spawnSync('espeak', ['-v', 'es', '-s', String(speed), text], {
             stdio: 'ignore'
         });
