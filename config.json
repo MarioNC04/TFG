@@ -6,7 +6,7 @@
   
   "enableVoiceResponse": true,
   "enableRemoteLogging": false,
-  "useGoogleSpeech": false,
+  "useGoogleSpeech": true,
   
   "language": "es-ES",
   "alternativeLanguages": ["es-MX", "es-AR"],
