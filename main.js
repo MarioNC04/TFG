@@ -336,6 +336,10 @@ class VoiceKeywordDetector {
 
     promptManualTranscriptionFallback() {
         return new Promise((resolve) => {
+            if (process.stdin.isPaused()) {
+                process.stdin.resume();
+            }
+
             const rl = readline.createInterface({
                 input: process.stdin,
                 output: process.stdout
@@ -634,6 +638,7 @@ class VoiceKeywordDetector {
             if (audioData.length > 0) {
                 console.log('🔄 Procesando audio capturado...');
                 this.processAudio(audioData);
+                rl.close();
             } else {
                 console.log('⚠️  No se capturó audio');
                 console.log('💡 Prueba rápida: ejecuta "arecord -l" y revisa config.audioSettings.device');
@@ -656,10 +661,10 @@ class VoiceKeywordDetector {
                 }).catch((err) => {
                     console.log(`⚠️ No se pudo realizar fallback manual: ${err.message}`);
                     setTimeout(() => this.showMenu(), 800);
+                }).finally(() => {
+                    rl.close();
                 });
             }
-            
-            rl.close();
         });
         
         try {
@@ -1065,6 +1070,10 @@ class VoiceKeywordDetector {
     }
 
     showMenu() {
+        if (process.stdin.isPaused()) {
+            process.stdin.resume();
+        }
+
         console.log('\n📋 Opciones:');
         console.log('1. 🚀 Iniciar detección continua');
         console.log('2. 🔧 Probar micrófono y síntesis de voz');
