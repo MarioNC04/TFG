@@ -63,6 +63,9 @@ class VoiceKeywordDetector {
         this.responseMessage = config.responseMessage;
         this.isListening = false;
         this.isSpeaking = false;
+        this.googleSpeechRequested = !!config.useGoogleSpeech;
+        this.googleSpeechReady = false;
+        this.googleSpeechInitError = null;
         this.micInstance = null;
         this.micInputStream = null;
         
@@ -77,23 +80,26 @@ class VoiceKeywordDetector {
                     this.speechClient = new speech.SpeechClient({
                         keyFilename: credentialsPath
                     });
+                    this.googleSpeechReady = true;
                     console.log('✅ Google Speech configurado con archivo de credenciales');
                 } else {
                     // Fallback corporativo: ADC con gcloud (sin clave JSON de service account).
                     this.speechClient = new speech.SpeechClient();
+                    this.googleSpeechReady = true;
                     console.log('✅ Google Speech configurado con credenciales ADC (gcloud)');
                     console.log('💡 Si falla autenticación, ejecuta: gcloud auth application-default login');
                 }
             } catch (error) {
                 console.log(`⚠️  Google Speech no disponible: ${error.message}`);
                 console.log('💡 Se usará modo manual/local como fallback');
-                config.useGoogleSpeech = false;
+                this.googleSpeechReady = false;
+                this.googleSpeechInitError = error.message;
             }
         } else if (this.isWindows) {
             console.log('🪟 En Windows: modo simulación optimizado');
             console.log('💡 Ideal para desarrollo y pruebas de lógica');
             console.log('🎯 El micrófono real funcionará automáticamente en Raspberry Pi');
-            config.useGoogleSpeech = false;
+            this.googleSpeechReady = false;
         }
         
         console.log(`🎯 Palabra objetivo: '${this.targetWord}'`);
@@ -235,7 +241,7 @@ class VoiceKeywordDetector {
             // Para Windows, usar una implementación simplificada
             if (this.isWindows) {
                 return await this.recognizeWithWebSpeechAPI(audioBuffer);
-            } else if (config.useGoogleSpeech) {
+            } else if (this.googleSpeechRequested && this.googleSpeechReady) {
                 return await this.recognizeWithGoogle(audioBuffer);
             } else {
                 return await this.recognizeWithPocketSphinx(audioBuffer);
@@ -359,7 +365,7 @@ class VoiceKeywordDetector {
 
             console.log('\n🎤 Audio capturado exitosamente');
             console.log('📊 Tamaño del audio: 15 bytes');
-            console.log('💭 Transcripción manual (Google Speech deshabilitado):');
+            console.log('💭 Transcripción manual (fallback por falta de audio capturado):');
             console.log('\n📝 ¿Qué dijiste? Opciones:');
             console.log('   1. Escribe "voluntario" si dijiste la palabra clave');
             console.log('   2. Escribe otra palabra si dijiste algo diferente');
@@ -864,7 +870,7 @@ class VoiceKeywordDetector {
                     try {
                         let transcription = '';
                         
-                        if (config.useGoogleSpeech && this.speechClient) {
+                        if (this.googleSpeechRequested && this.googleSpeechReady && this.speechClient) {
                             console.log('☁️ Procesando con Google Speech...');
                             transcription = await this.recognizeWithGoogle(audioBuffer);
                         } else {
@@ -960,7 +966,7 @@ class VoiceKeywordDetector {
             
             console.log('\n🎤 Audio capturado exitosamente');
             console.log('📊 Tamaño del audio:', audioBuffer.length, 'bytes');
-            console.log('💭 Transcripción manual (Google Speech deshabilitado):');
+            console.log('💭 Transcripción manual (Google Speech no disponible en este flujo):');
             console.log('\n📝 ¿Qué dijiste? Opciones:');
             console.log('   1. Escribe "voluntario" si dijiste la palabra clave');
             console.log('   2. Escribe otra palabra si dijiste algo diferente');
@@ -1043,7 +1049,7 @@ class VoiceKeywordDetector {
                     // Procesar el audio real
                     try {
                         let transcription;
-                        if (config.useGoogleSpeech && this.speechClient) {
+                        if (this.googleSpeechRequested && this.googleSpeechReady && this.speechClient) {
                             console.log('☁️ Usando Google Speech para transcripción...');
                             transcription = await this.recognizeWithGoogle(audioBuffer);
                         } else {
@@ -1163,7 +1169,11 @@ class VoiceKeywordDetector {
         console.log(`🎯 Palabra objetivo: ${config.targetWord}`);
         console.log(`💬 Respuesta: ${config.responseMessage}`);
         console.log(`🔊 Respuesta por voz: ${config.enableVoiceResponse ? 'Sí' : 'No'}`);
-        console.log(`🌐 Google Speech: ${config.useGoogleSpeech ? 'Sí' : 'No'}`);
+        console.log(`🌐 Google Speech (config): ${this.googleSpeechRequested ? 'Sí' : 'No'}`);
+        console.log(`🌐 Google Speech (estado): ${this.googleSpeechReady ? 'Disponible' : 'No disponible'}`);
+        if (this.googleSpeechRequested && !this.googleSpeechReady && this.googleSpeechInitError) {
+            console.log(`⚠️ Motivo Google Speech: ${this.googleSpeechInitError}`);
+        }
         console.log(`💻 Sistema: ${this.platform}`);
         console.log(`🎤 Modo micrófono: ${this.isWindows ? 'Simulado (Windows)' : 'Real (Linux/RPi)'}`);
     }
