@@ -615,6 +615,9 @@ class VoiceKeywordDetector {
         console.log('🎤 Grabando desde micrófono... Habla ahora');
         console.log('📝 Presiona ENTER cuando termines de hablar');
         
+        this.micInputStream.removeAllListeners('data');
+        this.micInputStream.removeAllListeners('error');
+
         this.micInputStream.on('data', (data) => {
             if (this.isListening) {
                 audioData.push(data);
@@ -626,8 +629,8 @@ class VoiceKeywordDetector {
             rl.close();
         });
         
-        // Cuando presione Enter, detener y procesar
-        rl.on('line', () => {
+        // Cuando presione Enter, detener y procesar una sola vez
+        rl.once('line', () => {
             console.log('🛑 Deteniendo grabación...');
             this.isListening = false;
             
@@ -640,6 +643,10 @@ class VoiceKeywordDetector {
                 this.processAudio(audioData);
                 rl.close();
             } else {
+                // Cerrar esta interfaz antes de pedir transcripción manual
+                // para evitar dos lectores compitiendo por el teclado.
+                rl.close();
+
                 console.log('⚠️  No se capturó audio');
                 console.log('💡 Prueba rápida: ejecuta "arecord -l" y revisa config.audioSettings.device');
                 console.log('💡 Fallback: puedes escribir manualmente lo que dijiste para probar lógica');
@@ -661,8 +668,6 @@ class VoiceKeywordDetector {
                 }).catch((err) => {
                     console.log(`⚠️ No se pudo realizar fallback manual: ${err.message}`);
                     setTimeout(() => this.showMenu(), 800);
-                }).finally(() => {
-                    rl.close();
                 });
             }
         });
