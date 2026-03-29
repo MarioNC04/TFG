@@ -12,7 +12,7 @@ const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
 const { Transform } = require('stream');
-const { execSync } = require('child_process');
+const { execSync, spawnSync } = require('child_process');
 
 // Para Windows: usar node-record-lpcm16 que funciona sin sox
 let recorder = null;
@@ -62,6 +62,7 @@ class VoiceKeywordDetector {
         this.targetWord = config.targetWord;
         this.responseMessage = config.responseMessage;
         this.isListening = false;
+        this.isSpeaking = false;
         this.micInstance = null;
         this.micInputStream = null;
         
@@ -159,7 +160,8 @@ class VoiceKeywordDetector {
                 rate: config.audioSettings.sampleRate,
                 channels: config.audioSettings.channels,
                 debug: false,
-                exitOnSilence: 6,
+                // En modo manual (ENTER para parar), evitar auto-stop por silencio.
+                exitOnSilence: 0,
                 silence: '2.0',
                 device: config.audioSettings.device || 'plughw:1,0'
             };
@@ -354,8 +356,47 @@ class VoiceKeywordDetector {
         // Configuración inteligente de voz por sistema operativo
         this.speakWithFallback(text);
     }
+
+    commandExists(commandName) {
+        try {
+            const result = spawnSync('which', [commandName], { stdio: 'ignore' });
+            return result.status === 0;
+        } catch (error) {
+            return false;
+        }
+    }
+
+    speakLinuxTTS(text) {
+        // En Linux/RPi evitamos "say" para no depender de festival y evitar crashes.
+        if (!this.commandExists('espeak')) {
+            console.log('⚠️ espeak no está instalado. Ejecuta: sudo apt install -y espeak');
+            console.log('⚠️ Síntesis de voz no disponible - continuando sin sonido');
+            return;
+        }
+
+        if (this.isSpeaking) {
+            console.log('ℹ️ Síntesis en curso, omitiendo nueva reproducción');
+            return;
+        }
+
+        this.isSpeaking = true;
+        const speed = Number(config.ttsSettings?.speed || 150);
+        const tts = spawnSync('espeak', ['-v', 'es', '-s', String(speed), text], {
+            stdio: 'ignore'
+        });
+        this.isSpeaking = false;
+
+        if (tts.status !== 0) {
+            console.log('⚠️ Error ejecutando espeak. Continuando sin voz.');
+        }
+    }
     
     speakWithFallback(text) {
+        if (this.isLinux || this.isRaspberryPi) {
+            this.speakLinuxTTS(text);
+            return;
+        }
+
         // Definir voces por sistema operativo
         let voiceOptions;
         
@@ -442,7 +483,7 @@ class VoiceKeywordDetector {
         console.log('🔊 Probando síntesis de voz...');
         
         // Mostrar información del sistema
-        console.log(`📱 Sistema: ${this.currentEnvironment}`);
+        console.log(`📱 Sistema: ${this.platform}`);
         
         // Intentar obtener voces disponibles
         const voices = this.getAvailableVoices();
@@ -553,6 +594,18 @@ class VoiceKeywordDetector {
                 this.processAudio(audioData);
             } else {
                 console.log('⚠️  No se capturó audio');
+                console.log('💡 Prueba rápida: ejecuta "arecord -l" y revisa config.audioSettings.device');
+                console.log('💡 Fallback: puedes escribir manualmente lo que dijiste para probar lógica');
+                this.recognizeWithWebSpeechAPI(Buffer.from('manual-fallback')).then((text) => {
+                    if (text && text.toLowerCase().includes(this.targetWord.toLowerCase())) {
+                        console.log(`🎉 ¡Palabra clave '${this.targetWord}' encontrada!`);
+                        this.onKeywordDetected();
+                    } else if (text) {
+                        console.log(`🔍 No se encontró '${this.targetWord}' en el texto`);
+                    }
+                }).catch((err) => {
+                    console.log(`⚠️ No se pudo realizar fallback manual: ${err.message}`);
+                });
             }
             
             rl.close();
