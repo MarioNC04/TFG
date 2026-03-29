@@ -1,0 +1,46 @@
+{
+  "_comment": "Configuración del detector de voz para Raspberry Pi en aula educativa",
+  
+  "targetWord": "voluntario",
+  "responseMessage": "Pasa tu tarjeta por el detector de NFCs",
+  
+  "enableVoiceResponse": true,
+  "enableRemoteLogging": false,
+  "useGoogleSpeech": false,
+  
+  "language": "es-ES",
+  "alternativeLanguages": ["es-MX", "es-AR"],
+  
+  "audioSettings": {
+    "sampleRate": 16000,
+    "channels": 1,
+    "device": "plughw:1,0",
+    "format": "S16_LE"
+  },
+  
+  "ttsSettings": {
+    "voice": "auto",
+    "speed": 150,
+    "volume": 0.8,
+    "enableFallback": true
+  },
+  
+  "raspberryPi": {
+    "optimizeForRPi": true,
+    "bufferSize": 1024,
+    "maxConcurrentProcessing": 2
+  },
+  
+  "classroom": {
+    "noiseReduction": true,
+    "teacherMicDistance": "medium",
+    "ambientNoiseThreshold": 3000
+  },
+  
+  "googleCredentialsPath": "./credentials/google-cloud-key.json",
+  
+  "serverSettings": {
+    "remoteServerUrl": "https://your-school-server.com/api/detections",
+    "apiKey": "your-api-key-here"
+  }
+}

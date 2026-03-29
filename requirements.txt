@@ -1,0 +1,6 @@
+# Este archivo ya no es necesario para la versión JavaScript
+# Las dependencias ahora están en package.json
+# Para migrar de Python a Node.js:
+# 1. Instala Node.js desde nodejs.org
+# 2. Ejecuta: npm install
+# 3. Ejecuta: node main.js
