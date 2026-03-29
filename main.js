@@ -307,7 +307,7 @@ class VoiceKeywordDetector {
         
         console.log(`📊 Procesando ${audioBuffer.length} bytes de audio...`);
         
-        this.recognizeAudio(audioBuffer)
+        return this.recognizeAudio(audioBuffer)
             .then(text => {
                 if (text && text.trim().length > 0) {
                     console.log(`\n🎵 Texto detectado: "${text}"`);
@@ -325,7 +325,49 @@ class VoiceKeywordDetector {
             })
             .catch(error => {
                 console.error('❌ Error procesando audio:', error.message);
+            })
+            .finally(() => {
+                setTimeout(() => {
+                    console.log('\n📋 Regresando al menú principal...');
+                    this.showMenu();
+                }, 800);
             });
+    }
+
+    promptManualTranscriptionFallback() {
+        return new Promise((resolve) => {
+            const rl = readline.createInterface({
+                input: process.stdin,
+                output: process.stdout
+            });
+
+            console.log('\n🎤 Audio capturado exitosamente');
+            console.log('📊 Tamaño del audio: 15 bytes');
+            console.log('💭 Transcripción manual (Google Speech deshabilitado):');
+            console.log('\n📝 ¿Qué dijiste? Opciones:');
+            console.log('   1. Escribe "voluntario" si dijiste la palabra clave');
+            console.log('   2. Escribe otra palabra si dijiste algo diferente');
+            console.log('   3. Presiona ENTER si no dijiste nada o no se escuchó bien');
+            console.log('\n💡 Consejo: Para pruebas rápidas puedes escribir directamente "voluntario"');
+
+            const askForText = (attempt) => {
+                rl.question('🗣️ Tu respuesta: ', (answer) => {
+                    const text = answer.trim();
+
+                    // Evita que el ENTER usado para detener grabación se consuma como respuesta vacía.
+                    if (!text && attempt === 1) {
+                        console.log('ℹ️ No se recibió texto. Intenta escribir la transcripción una vez más.');
+                        askForText(2);
+                        return;
+                    }
+
+                    rl.close();
+                    resolve(text);
+                });
+            };
+
+            setTimeout(() => askForText(1), 150);
+        });
     }
     
     onKeywordDetected() {
@@ -596,24 +638,28 @@ class VoiceKeywordDetector {
                 console.log('⚠️  No se capturó audio');
                 console.log('💡 Prueba rápida: ejecuta "arecord -l" y revisa config.audioSettings.device');
                 console.log('💡 Fallback: puedes escribir manualmente lo que dijiste para probar lógica');
-                this.recognizeWithWebSpeechAPI(Buffer.from('manual-fallback')).then((text) => {
+
+                this.promptManualTranscriptionFallback().then((text) => {
                     if (text && text.toLowerCase().includes(this.targetWord.toLowerCase())) {
                         console.log(`🎉 ¡Palabra clave '${this.targetWord}' encontrada!`);
                         this.onKeywordDetected();
                     } else if (text) {
                         console.log(`🔍 No se encontró '${this.targetWord}' en el texto`);
+                    } else {
+                        console.log('⭕ Sin transcripción');
                     }
+
+                    setTimeout(() => {
+                        console.log('\n📋 Regresando al menú principal...');
+                        this.showMenu();
+                    }, 800);
                 }).catch((err) => {
                     console.log(`⚠️ No se pudo realizar fallback manual: ${err.message}`);
+                    setTimeout(() => this.showMenu(), 800);
                 });
             }
             
             rl.close();
-            
-            // Volver al menú después de procesar
-            setTimeout(() => {
-                console.log('\\n📋 Presiona cualquier tecla para volver al menú...');
-            }, 2000);
         });
         
         try {
