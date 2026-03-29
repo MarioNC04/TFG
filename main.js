@@ -948,8 +948,8 @@ class VoiceKeywordDetector {
                 },
                 config: {
                     encoding: 'LINEAR16',
-                    sampleRateHertz: 44100,
-                    languageCode: 'es-ES',
+                    sampleRateHertz: config.audioSettings.sampleRate || 16000,
+                    languageCode: config.language || 'es-ES',
                     maxAlternatives: 1,
                 },
             };
