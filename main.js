@@ -69,12 +69,24 @@ class VoiceKeywordDetector {
         // Configurar cliente de Google Speech (si se usa)
         if (config.useGoogleSpeech && this.isLinux) {
             try {
-                this.speechClient = new speech.SpeechClient({
-                    keyFilename: config.googleCredentialsPath
-                });
-                console.log('✅ Cliente Google Speech configurado');
+                const credentialsPath = config.googleCredentialsPath
+                    ? path.resolve(__dirname, config.googleCredentialsPath)
+                    : null;
+
+                if (credentialsPath && fs.existsSync(credentialsPath)) {
+                    this.speechClient = new speech.SpeechClient({
+                        keyFilename: credentialsPath
+                    });
+                    console.log('✅ Google Speech configurado con archivo de credenciales');
+                } else {
+                    // Fallback corporativo: ADC con gcloud (sin clave JSON de service account).
+                    this.speechClient = new speech.SpeechClient();
+                    console.log('✅ Google Speech configurado con credenciales ADC (gcloud)');
+                    console.log('💡 Si falla autenticación, ejecuta: gcloud auth application-default login');
+                }
             } catch (error) {
-                console.log('⚠️  Google Speech no disponible, usando reconocimiento local');
+                console.log(`⚠️  Google Speech no disponible: ${error.message}`);
+                console.log('💡 Se usará modo manual/local como fallback');
                 config.useGoogleSpeech = false;
             }
         } else if (this.isWindows) {
