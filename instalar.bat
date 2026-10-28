@@ -71,7 +71,6 @@ echo.
 echo [4/4] Verificando instalación...
 echo.
 
-node -e "try { require('mic'); console.log('✅ mic OK'); } catch(e) { console.log('❌ mic NO INSTALADO'); }" 2>nul
 node -e "try { require('@google-cloud/speech'); console.log('✅ @google-cloud/speech OK'); } catch(e) { console.log('❌ @google-cloud/speech NO INSTALADO'); }" 2>nul
 node -e "try { require('say'); console.log('✅ say OK'); } catch(e) { console.log('❌ say NO INSTALADO'); }" 2>nul
 
@@ -82,7 +81,7 @@ echo ========================================
 echo.
 echo 1. Si todos los paquetes muestran ✅, ejecuta: node main.js
 echo 2. Si alguno muestra ❌, revisa el log de npm install
-echo 3. Para Raspberry Pi, usa el script install-rpi.sh
+echo 3. Para Raspberry Pi, usa el script instalar.sh
 echo 4. Consulta el README.md para configuración adicional
 echo.
 echo ⚠️  NOTA IMPORTANTE:
@@ -90,6 +89,7 @@ echo Este sistema está diseñado para Raspberry Pi en aulas.
 echo En Windows es solo para desarrollo/pruebas.
 echo.
 echo 🎤 Para probar micrófono: npm run test-mic
+echo 🦊 API simulada: npm run server
 echo 🚀 Para iniciar: npm start
 echo.
 pause

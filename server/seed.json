@@ -1,0 +1,19 @@
+{
+  "cards": {
+    "PROF-MATES": { "role": "teacher", "name": "Tarjeta de Matemáticas", "subject": "matematicas" },
+    "PROF-LENGUA": { "role": "teacher", "name": "Tarjeta de Lengua", "subject": "lengua" },
+    "PROF-INGLES": { "role": "teacher", "name": "Tarjeta de Inglés", "subject": "ingles" },
+    "PROF-CIENCIAS": { "role": "teacher", "name": "Tarjeta de Ciencias", "subject": "ciencias" },
+    "ALU-001": { "role": "student", "studentId": "alu-001" },
+    "ALU-002": { "role": "student", "studentId": "alu-002" },
+    "ALU-003": { "role": "student", "studentId": "alu-003" },
+    "ALU-004": { "role": "student", "studentId": "alu-004" }
+  },
+  "students": [
+    { "id": "alu-001", "name": "Lucía", "points": 0, "achievements": [], "history": [] },
+    { "id": "alu-002", "name": "Hugo", "points": 0, "achievements": [], "history": [] },
+    { "id": "alu-003", "name": "Martina", "points": 0, "achievements": [], "history": [] },
+    { "id": "alu-004", "name": "Pablo", "points": 0, "achievements": [], "history": [] }
+  ],
+  "missions": []
+}

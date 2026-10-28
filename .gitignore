@@ -57,6 +57,7 @@ dist
 # Gatsby files
 .cache/
 public
+!server/public/
 
 # Vuepress build output
 .vuepress/dist
@@ -93,11 +94,13 @@ test-audio.wav
 *.mp3
 *.ogg
 
-# Google Cloud credentials
-credentials/
-*.json
-!package.json
-!config.json
+# Google Cloud credentials (solo se versionan los ejemplos)
+credentials/*
+!credentials/README.md
+!credentials/*.example.json
+
+# Datos de la API simulada (se regeneran desde server/seed.json)
+data/
 
 # Backup files
 *.backup

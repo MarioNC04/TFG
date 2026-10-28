@@ -1,69 +1,39 @@
 {
-  "name": "voice-keyword-detector-classroom",
-  "version": "1.0.0",
-  "description": "Detector de voz para aulas educativas en Raspberry Pi - Detecta 'voluntario' y responde 'Hola mundo'",
+  "name": "avatar-pervasivo-aula",
+  "version": "2.0.0",
+  "description": "Sistema de avatar pervasivo para el aula: escucha al profesor, genera misiones y registra con tarjetas NFC los logros de los alumnos (Raspberry Pi + TecnoCRA)",
   "main": "main.js",
   "scripts": {
     "start": "node main.js",
+    "server": "node server/index.js",
     "dev": "nodemon main.js",
-    "test-mic": "node test-microphone.js",
-    "install-rpi": "npm run install-audio-libs && npm install",
-    "install-audio-libs": "echo 'Instalando bibliotecas de audio para Raspberry Pi...'",
-    "setup-permissions": "sudo usermod -a -G audio $USER"
+    "test": "node --test",
+    "test-mic": "node scripts/probar-microfono.js"
   },
   "keywords": [
-    "voice-recognition",
     "raspberry-pi",
     "classroom",
     "education",
+    "gamification",
     "speech-to-text",
-    "nodejs",
-    "microphone",
-    "audio-processing"
+    "nfc",
+    "tecnocra"
   ],
-  "author": "TFG Project",
+  "author": "Mario Navarro de la Cruz",
   "license": "MIT",
   "dependencies": {
     "@google-cloud/speech": "^5.5.0",
     "dotenv": "^16.0.3",
-    "fs-extra": "^11.1.0",
-    "mic": "^2.1.2",
-    "node-record-lpcm16": "^1.0.1",
-    "say": "^0.16.0",
-    "wav": "^1.0.2"
+    "say": "^0.16.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
   },
   "engines": {
-    "node": ">=16.0.0",
-    "npm": ">=8.0.0"
+    "node": ">=18.0.0"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-username/voice-keyword-detector"
-  },
-  "raspberryPi": {
-    "recommendedOS": "Raspberry Pi OS Lite",
-    "minimalRequirements": {
-      "ram": "1GB",
-      "storage": "8GB",
-      "audioInterface": "USB microphone o HAT de audio"
-    },
-    "systemDependencies": [
-      "alsa-utils",
-      "sox",
-      "espeak",
-      "pulseaudio"
-    ]
-  },
-  "classroom": {
-    "optimizedFor": "Educational environments",
-    "features": [
-      "Low latency detection",
-      "Classroom noise filtering",
-      "Teacher voice optimization",
-      "Remote logging capability"
-    ]
+    "url": "https://github.com/MarioNC04/TFG.git"
   }
 }

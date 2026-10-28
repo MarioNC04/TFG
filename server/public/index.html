@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zorro del aula</title>
+<style>
+  :root { --bg: #fdf6ec; --card: #fff; --ink: #3b2a1a; --muted: #8a7462; --accent: #e8742a; --ok: #2f8f5b; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--ink); }
+  main { max-width: 960px; margin: 0 auto; padding: 24px 16px; display: grid; gap: 16px; }
+  .avatar { display: flex; gap: 16px; align-items: center; background: var(--card); border-radius: 16px; padding: 20px; }
+  .fox { font-size: 72px; line-height: 1; }
+  .bubble { font-size: 1.4rem; font-weight: 600; }
+  .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+  section { background: var(--card); border-radius: 16px; padding: 16px 20px; }
+  h2 { margin: 0 0 8px; font-size: 1rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+  ul { list-style: none; margin: 0; padding: 0; }
+  li { padding: 8px 0; border-bottom: 1px solid #f0e6da; }
+  li:last-child { border-bottom: 0; }
+  .tag { font-size: .8rem; color: var(--accent); }
+  .points { float: right; font-weight: 700; color: var(--ok); }
+  .empty { color: var(--muted); }
+  .error { color: #b3261e; }
+</style>
+</head>
+<body>
+<main>
+  <div class="avatar">
+    <div class="fox" aria-hidden="true">🦊</div>
+    <div><div class="tag" id="name">Zorro</div><div class="bubble" id="message">Cargando…</div></div>
+  </div>
+  <div class="grid">
+    <section><h2>Misiones abiertas</h2><ul id="missions"></ul></section>
+    <section><h2>Ranking</h2><ul id="ranking"></ul></section>
+    <section><h2>Últimos logros</h2><ul id="achievements"></ul></section>
+  </div>
+</main>
+<script>
+  const el = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const list = (items, render, empty) => items.length ? items.map((i) => `<li>${render(i)}</li>`).join('') : `<li class="empty">${empty}</li>`;
+
+  async function refresh() {
+    try {
+      const avatar = await (await fetch('/api/avatar')).json();
+      el('name').textContent = avatar.name;
+      el('message').textContent = avatar.message;
+      el('message').classList.remove('error');
+      el('missions').innerHTML = list(avatar.missions,
+        (m) => `${esc(m.title)}<br><span class="tag">${m.modality === 'grupal' ? 'Toda la clase' : 'Voluntario'} · ${m.participants.length} participante/s</span>`,
+        'No hay misiones ahora mismo');
+      el('ranking').innerHTML = list(avatar.ranking, (r) => `${esc(r.name)}<span class="points">${r.points}</span>`, 'Sin alumnos');
+      el('achievements').innerHTML = list(avatar.recentAchievements,
+        (a) => `🏆 ${esc(a.title)}<br><span class="tag">${esc(a.student)}</span>`, 'Todavía no hay logros');
+    } catch (error) {
+      el('message').textContent = 'No se puede conectar con el servidor';
+      el('message').classList.add('error');
+    }
+  }
+  refresh();
+  setInterval(refresh, 3000);
+</script>
+</body>
+</html>

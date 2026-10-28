@@ -1,46 +1,45 @@
 {
-  "_comment": "Configuración del detector de voz para Raspberry Pi en aula educativa",
-  
-  "targetWord": "voluntario",
-  "responseMessage": "Pasa tu tarjeta por el detector de NFCs",
-  
-  "enableVoiceResponse": true,
-  "enableRemoteLogging": false,
-  "useGoogleSpeech": true,
-  
+  "_comment": "Configuración del sistema de avatar pervasivo. Las variables de .env (ver .env.example) tienen prioridad.",
+
   "language": "es-ES",
-  "alternativeLanguages": ["es-MX", "es-AR"],
-  
-  "audioSettings": {
+  "volunteerKeywords": ["voluntario", "voluntaria"],
+  "defaultSubject": "matematicas",
+
+  "speech": {
+    "provider": "google",
+    "credentialsPath": "./credentials/google-cloud-key.json"
+  },
+
+  "audio": {
+    "device": "plughw:3,0",
     "sampleRate": 16000,
     "channels": 1,
-    "device": "plughw:3,0",
-    "format": "S16_LE"
+    "maxRecordSeconds": 8
   },
-  
-  "ttsSettings": {
-    "voice": "auto",
-    "speed": 150,
-    "volume": 0.8,
-    "enableFallback": true
+
+  "voiceResponse": {
+    "enabled": false,
+    "speed": 150
   },
-  
-  "raspberryPi": {
-    "optimizeForRPi": true,
-    "bufferSize": 1024,
-    "maxConcurrentProcessing": 2
+
+  "nfc": {
+    "mode": "keyboard"
   },
-  
-  "classroom": {
-    "noiseReduction": true,
-    "teacherMicDistance": "medium",
-    "ambientNoiseThreshold": 3000
+
+  "api": {
+    "url": "http://localhost:3000/api",
+    "timeoutMs": 3000
   },
-  
-  "googleCredentialsPath": "./credentials/google-cloud-key.json",
-  
-  "serverSettings": {
-    "remoteServerUrl": "https://your-school-server.com/api/detections",
-    "apiKey": "your-api-key-here"
-  }
+
+  "interpreter": {
+    "url": "http://localhost:3000/api/interpret"
+  },
+
+  "server": {
+    "host": "0.0.0.0",
+    "port": 3000,
+    "dataFile": "./data/db.json"
+  },
+
+  "pendingQueueFile": "./logs/pending-missions.json"
 }

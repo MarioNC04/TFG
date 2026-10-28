@@ -150,10 +150,8 @@ echo
 print_status "📋 Verificando paquetes instalados:"
 
 # Verificar cada dependencia
-node -e "try { require('mic'); console.log('✅ mic OK'); } catch(e) { console.log('❌ mic FALLO'); }" 2>/dev/null
 node -e "try { require('@google-cloud/speech'); console.log('✅ @google-cloud/speech OK'); } catch(e) { console.log('❌ @google-cloud/speech FALLO'); }" 2>/dev/null
 node -e "try { require('say'); console.log('✅ say OK'); } catch(e) { console.log('❌ say FALLO'); }" 2>/dev/null
-node -e "try { require('wav'); console.log('✅ wav OK'); } catch(e) { console.log('❌ wav FALLO'); }" 2>/dev/null
 
 echo
 print_status "🔧 Verificando sistema de audio..."
@@ -177,9 +175,10 @@ echo
 print_status "✅ Sistema listo para usar en aula educativa"
 echo
 print_status "🎯 Comandos disponibles:"
-echo "   • npm start        - Iniciar detector de voz"
+echo "   • npm run server   - Arrancar la API simulada (TecnoCRA)"
+echo "   • npm start        - Iniciar el sistema del aula"
 echo "   • npm run test-mic - Probar micrófono"
-echo "   • node main.js     - Ejecutar directamente"
+echo "   • npm test         - Ejecutar los tests"
 echo
 if [ "$IS_RPI" = true ]; then
     print_status "🍓 Configuración específica Raspberry Pi:"
