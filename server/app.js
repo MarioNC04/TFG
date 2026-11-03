@@ -8,6 +8,7 @@
  *   POST /api/students/:id/rewards {points, reason}
  *   GET  /api/missions?status=pending    POST /api/missions
  *   POST /api/missions/:id/complete {studentId}
+ *   POST /api/missions/:id/attempt {studentId}   (salió pero no la completó)
  *   POST /api/missions/:id/close
  *   POST /api/interpret {transcript, subject}   (simula el servicio de IA / Node-RED)
  *   GET  /api/avatar
@@ -70,6 +71,7 @@ function buildRoutes(store, options) {
         ['GET', /^\/api\/missions$/, (p, b, query) => store.listMissions(query.get('status'))],
         ['POST', /^\/api\/missions$/, (p, body) => store.createMission(body)],
         ['POST', /^\/api\/missions\/([^/]+)\/complete$/, ([id], body) => store.completeMission(id, body.studentId)],
+        ['POST', /^\/api\/missions\/([^/]+)\/attempt$/, ([id], body) => store.attemptMission(id, body.studentId)],
         ['POST', /^\/api\/missions\/([^/]+)\/close$/, ([id]) => store.closeMission(id)],
         ['POST', /^\/api\/interpret$/, (p, body) => parseMission(body.transcript, {
             subject: body.subject,

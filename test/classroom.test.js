@@ -56,6 +56,27 @@ test('escucha libre: solo crea misión cuando se pide un voluntario', async (t) 
     assert.equal(mission.source, 'voz');
 });
 
+test('un alumno que sale y no completa la misión recibe menos puntos y la deja abierta', async (t) => {
+    const { api, classroom } = await setup(t, ['Necesito un voluntario para el ejercicio de matemáticas']);
+    const { mission } = await classroom.handleCard('PROF-MATES');
+
+    const attempt = await api.attemptMission(mission.id, 'alu-001');
+    assert.equal(attempt.pointsAwarded, 2);
+    assert.equal(attempt.student.points, 2);
+    assert.equal(attempt.student.achievements.length, 0);
+    assert.equal(attempt.mission.status, 'pending');
+
+    // Lucía ya participó: la siguiente misión abierta para ella no es esta
+    assert.equal(await classroom.latestOpenMissionFor('alu-001'), null);
+    await assert.rejects(api.completeMission(mission.id, 'alu-001'), /ya participó/);
+
+    // Otro alumno sí puede completarla
+    const done = await classroom.handleCard('ALU-002');
+    assert.equal(done.result.mission.id, mission.id);
+    assert.equal(done.result.pointsAwarded, 10);
+    assert.equal(done.result.mission.status, 'completed');
+});
+
 test('alumno sin misiones abiertas', async (t) => {
     const { classroom } = await setup(t, []);
     const event = await classroom.handleCard('ALU-001');

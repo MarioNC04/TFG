@@ -50,16 +50,20 @@ class Classroom {
     }
 
     async handleStudentCard(card) {
+        const latest = await this.latestOpenMissionFor(card.student.id);
+        if (!latest) return { kind: 'student', student: card.student, result: null };
+
+        const result = await this.api.completeMission(latest.id, card.student.id);
+        return { kind: 'student', student: result.student, result };
+    }
+
+    /** Misión abierta más reciente en la que el alumno todavía no ha participado. */
+    async latestOpenMissionFor(studentId) {
         const open = [
             ...await this.api.listMissions('pending'),
             ...await this.api.listMissions('in_progress')
-        ].filter((m) => !m.participants.includes(card.student.id));
-
-        if (open.length === 0) return { kind: 'student', student: card.student, result: null };
-
-        const latest = open.sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
-        const result = await this.api.completeMission(latest.id, card.student.id);
-        return { kind: 'student', student: result.student, result };
+        ].filter((m) => !m.participants.includes(studentId) && !(m.attempts || []).includes(studentId));
+        return open.sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0] || null;
     }
 
     /** Escucha libre: solo crea misión si la frase lo pide (p. ej. "voluntario"). */

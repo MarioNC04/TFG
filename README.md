@@ -81,7 +81,7 @@ aula> ALU-001
 🏆 ¡Lucía consigue el logro "Voluntario Valiente"! (Primera misión como voluntario)
 ```
 
-Comandos: `ayuda`, `escuchar`, `misiones`, `alumnos`, `puntos <alumno> <n> [motivo]`, `cerrar [id]`, `avatar`, `registrar …`, `tarjetas`, `sincronizar`, `microfono`, `estado`, `salir`.
+Comandos: `ayuda`, `escuchar`, `misiones`, `alumnos`, `puntos <alumno> <n> [motivo]`, `intento <alumno>`, `cerrar [id]`, `avatar`, `registrar …`, `tarjetas`, `sincronizar`, `microfono`, `estado`, `salir`.
 
 ### Conectar Node-RED o un servicio de IA
 
@@ -101,6 +101,7 @@ Si la API no responde al crear una misión, se guarda en `logs/pending-missions.
 | POST | `/api/students/:id/rewards` | Puntos del profesor `{ points, reason }` |
 | GET/POST | `/api/missions` (`?status=pending`) | Misiones |
 | POST | `/api/missions/:id/complete` | Alumno realiza la misión `{ studentId }` |
+| POST | `/api/missions/:id/attempt` | Alumno sale pero no completa la misión `{ studentId }` (menos puntos, la misión sigue abierta) |
 | POST | `/api/missions/:id/close` | Cerrar misión grupal |
 | POST | `/api/interpret` | Interpretar frase (simula IA / Node-RED) |
 | GET | `/api/avatar` | Estado del zorro: mensaje, misiones, ranking, logros |
@@ -117,7 +118,7 @@ Los datos se guardan en `data/db.json` (bórralo para volver a los datos de ejem
 | Racha Imparable | 5 misiones |
 | Estrella de la Clase | 100 puntos |
 
-Puntos: 10 por misión individual, 5 por misión grupal, más los que asigne el profesor.
+Puntos: 10 por misión individual, 5 por misión grupal y 2 si el alumno sale pero no completa la misión (comando `intento`), más los que asigne el profesor. Los intentos no cuentan para los logros.
 
 ## Servicio en la Raspberry Pi
 

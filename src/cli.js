@@ -19,6 +19,7 @@ Comandos:
   misiones                       Ver misiones abiertas
   alumnos                        Ver alumnos, puntos y logros
   puntos <alumno> <n> [motivo]   Dar (o quitar) puntos a un alumno
+  intento <alumno>               El alumno salió pero no completó la misión (menos puntos)
   cerrar [idMisión]              Cerrar una misión de toda la clase (por defecto la última)
   avatar                         Ver lo que muestra el zorro
   registrar profesor <UID> <asignatura>
@@ -133,6 +134,7 @@ class Cli {
             case 'misiones': return this.showMissions();
             case 'alumnos': return this.showStudents();
             case 'puntos': return this.givePoints(args);
+            case 'intento': return this.registerAttempt(args[0]);
             case 'cerrar': return this.closeMission(args[0]);
             case 'avatar': return this.showAvatar();
             case 'registrar': return this.registerCard(args);
@@ -213,6 +215,15 @@ class Cli {
         const result = await this.api.reward(student.id, Number(points), reason.join(' ') || undefined);
         console.log(`⭐ ${student.name}: ${Number(points) > 0 ? '+' : ''}${points} puntos (total ${result.student.points})`);
         this.reportAchievements(student.name, result.newAchievements);
+    }
+
+    async registerAttempt(who) {
+        if (!who) return console.log('Uso: intento <alumno>');
+        const student = await this.findStudent(who);
+        const mission = await this.classroom.latestOpenMissionFor(student.id);
+        if (!mission) return console.log(`📭 No hay misiones abiertas para ${student.name}`);
+        const result = await this.api.attemptMission(mission.id, student.id);
+        console.log(`🔁 ${student.name} lo ha intentado en "${mission.title}" (+${result.pointsAwarded} puntos, total ${result.student.points}); la misión sigue abierta`);
     }
 
     async closeMission(id) {

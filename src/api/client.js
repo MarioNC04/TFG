@@ -47,6 +47,7 @@ class ApiClient {
     listStudents() { return this.request('GET', '/students'); }
     listMissions(status) { return this.request('GET', `/missions${status ? `?status=${status}` : ''}`); }
     completeMission(id, studentId) { return this.request('POST', `/missions/${id}/complete`, { studentId }); }
+    attemptMission(id, studentId) { return this.request('POST', `/missions/${id}/attempt`, { studentId }); }
     closeMission(id) { return this.request('POST', `/missions/${id}/close`); }
     reward(studentId, points, reason) { return this.request('POST', `/students/${studentId}/rewards`, { points, reason }); }
     avatar() { return this.request('GET', '/avatar'); }

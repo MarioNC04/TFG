@@ -8,6 +8,8 @@ const path = require('path');
 const { evaluateAchievements } = require('./achievements');
 
 const POINTS_BY_MODALITY = { individual: 10, grupal: 5 };
+// Puntos por salir a hacer una misión sin llegar a completarla.
+const ATTEMPT_POINTS = 2;
 const SEED_FILE = path.join(__dirname, 'seed.json');
 // Durante este tiempo el zorro anuncia el último logro conseguido.
 const ACHIEVEMENT_ANNOUNCE_MS = 2 * 60 * 1000;
@@ -152,7 +154,9 @@ class Store {
         const mission = this.getMission(missionId);
         const student = this.getStudent(studentId);
         if (mission.status === 'completed') throw new HttpError(409, 'La misión ya está completada');
-        if (mission.participants.includes(student.id)) throw new HttpError(409, `${student.name} ya participó en esta misión`);
+        if (mission.participants.includes(student.id) || (mission.attempts || []).includes(student.id)) {
+            throw new HttpError(409, `${student.name} ya participó en esta misión`);
+        }
 
         mission.participants.push(student.id);
         if (mission.modality === 'individual') {
@@ -168,6 +172,27 @@ class Store {
         const newAchievements = this.refreshAchievements(student);
         this.save();
         return { mission, student, pointsAwarded, newAchievements };
+    }
+
+    /**
+     * Registra que un alumno salió a hacer la misión pero no la completó.
+     * Recibe menos puntos, no cuenta para los logros y la misión sigue abierta
+     * para que la intente otro alumno.
+     */
+    attemptMission(missionId, studentId) {
+        const mission = this.getMission(missionId);
+        const student = this.getStudent(studentId);
+        if (mission.status === 'completed') throw new HttpError(409, 'La misión ya está completada');
+        mission.attempts = mission.attempts || [];
+        if (mission.participants.includes(student.id) || mission.attempts.includes(student.id)) {
+            throw new HttpError(409, `${student.name} ya participó en esta misión`);
+        }
+
+        mission.attempts.push(student.id);
+        student.points += ATTEMPT_POINTS;
+        student.history.push({ points: ATTEMPT_POINTS, reason: `Intento: ${mission.title}`, missionId: mission.id, at: new Date().toISOString() });
+        this.save();
+        return { mission, student, pointsAwarded: ATTEMPT_POINTS };
     }
 
     closeMission(missionId) {
@@ -205,4 +230,4 @@ class Store {
     }
 }
 
-module.exports = { Store, HttpError, POINTS_BY_MODALITY };
+module.exports = { Store, HttpError, POINTS_BY_MODALITY, ATTEMPT_POINTS };
