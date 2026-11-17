@@ -2,11 +2,25 @@
   "_comment": "Configuración del sistema de avatar pervasivo. Las variables de .env (ver .env.example) tienen prioridad.",
 
   "language": "es-ES",
-  "volunteerKeywords": ["voluntario", "voluntaria"],
   "defaultSubject": "matematicas",
 
+  "session": {
+    "_comment": "Escucha activa tras la tarjeta del profesor: minutos máximos y longitud de las frases que se analizan.",
+    "listenMinutes": 15,
+    "minWords": 3,
+    "maxWords": 25,
+    "allowSubstitutes": true,
+    "requireTimeSync": true,
+    "checkIntervalSeconds": 30
+  },
+
   "speech": {
-    "provider": "google",
+    "_comment": "provider: vosk (local, sin conexión) | google | manual",
+    "provider": "vosk",
+    "vosk": {
+      "python": "./.venv/bin/python",
+      "modelPath": "./models/vosk-model-small-es-0.42"
+    },
     "credentialsPath": "./credentials/google-cloud-key.json"
   },
 
@@ -41,5 +55,7 @@
     "dataFile": "./data/db.json"
   },
 
-  "pendingQueueFile": "./logs/pending-missions.json"
+  "pendingQueueFile": "./logs/pending-missions.json",
+  "discardedMissionsFile": "./logs/misiones-descartadas.json",
+  "scheduleCacheFile": "./logs/horario.json"
 }

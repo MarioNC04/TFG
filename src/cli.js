@@ -1,13 +1,14 @@
 /**
  * Consola del sistema en el aula.
  *
- * Una única interfaz readline atiende los comandos, las preguntas de
- * transcripción manual y los UID que escribe un lector NFC de tipo teclado,
- * evitando que varios lectores compitan por la entrada estándar.
+ * Una única interfaz readline atiende los comandos, los UID que escribe un
+ * lector NFC de tipo teclado y, si no hay micrófono, las frases del profesor
+ * escritas a mano. Lo que ocurre en el aula llega como eventos de Classroom.
  */
 
 const readline = require('readline');
 const { subjectLabel, SUBJECTS } = require('./missions/parser');
+const { describeEvent, modalityLabel } = require('./messages');
 
 const PROMPT = 'aula> ';
 
@@ -15,69 +16,73 @@ const HELP = `
 Comandos:
   <UID>                          Pasar una tarjeta (el lector USB la escribe sola)
   tarjeta <UID>                  Igual que lo anterior, escrito a mano
-  escuchar                       Escuchar al profesor; si pide un voluntario se crea una misión
-  misiones                       Ver misiones abiertas
-  alumnos                        Ver alumnos, puntos y logros
+  <frase>                        Sin micrófono: lo que dice el profesor mientras se escucha
+  estado                         Sesión, franja y misión en curso
+  horario [actualizar]           Horario de hoy (o volver a descargarlo)
+  misiones                       Últimas misiones registradas
+  alumnos                        Alumnos, puntos y logros
   puntos <alumno> <n> [motivo]   Dar (o quitar) puntos a un alumno
-  intento <alumno>               El alumno salió pero no completó la misión (menos puntos)
-  cerrar [idMisión]              Cerrar una misión de toda la clase (por defecto la última)
   avatar                         Ver lo que muestra el zorro
-  registrar profesor <UID> <asignatura>
+  registrar profesor <UID> <nombre> [asig1,asig2]
   registrar alumno <UID> <nombre>
   tarjetas                       Ver tarjetas registradas
   sincronizar                    Reenviar misiones guardadas sin conexión
-  microfono                      Probar el micrófono y el reconocimiento de voz
-  estado                         Ver la configuración y el estado del sistema
+  microfono [segundos]           Probar la escucha y el reconocimiento de voz
   ayuda | salir
 `;
 
-function formatMission(m) {
-    const who = m.modality === 'grupal' ? 'toda la clase' : 'voluntario';
-    return `${m.title} [${who}] (${m.status}) · id ${m.id}`;
-}
-
 class Cli {
-    constructor({ classroom, api, nfc, recorder, recognizer, config, speak }) {
+    constructor({ classroom, api, nfc, listener, config, speak }) {
         this.classroom = classroom;
         this.api = api;
         this.nfc = nfc;
-        this.recorder = recorder;
-        this.recognizer = recognizer;
+        this.listener = listener;
         this.config = config;
         this.speak = speak;
-        this.waiter = null;
         this.busy = false;
+        this.rl = null;
+        this.queue = Promise.resolve();
 
-        // Prompts solo con ASCII: los emojis ocupan anchos distintos según la
+        // Una tarjeta pasada dos veces seguidas por el lector se ignora mientras
+        // se atiende la primera.
+        this.nfc.on('card', (uid) => {
+            if (this.busy) return this.say('⏳ Espera a que termine la acción en curso');
+            this.enqueue(() => this.onCard(uid));
+        });
+        this.classroom.on('event', (event) => this.printEvent(event));
+    }
+
+    /** Se llama cuando el sistema ya ha arrancado, para no perder lo que se escriba antes. */
+    start() {
+        // Prompt solo con ASCII: los emojis ocupan anchos distintos según la
         // terminal y descolocan el cursor al editar la línea.
         this.rl = readline.createInterface({ input: process.stdin, output: process.stdout, prompt: PROMPT });
         this.rl.on('line', (line) => this.onLine(line));
-        this.rl.on('close', () => process.exit(0));
-        this.nfc.on('card', (uid) => this.run(() => this.onCard(uid)));
-    }
-
-    start() {
+        this.rl.on('close', () => this.queue.then(() => process.exit(0)));
         console.log(HELP);
         this.rl.prompt();
     }
 
-    onLine(line) {
-        if (this.waiter) {
-            const resolve = this.waiter;
-            this.endAsk();
-            resolve(line.trim());
-            return;
-        }
-        if (!line.trim()) return this.rl.prompt();
-        this.run(() => this.dispatch(line.trim()));
+    /** Escribe un mensaje sin romper la línea que se esté escribiendo. */
+    say(message) {
+        if (this.busy || !this.rl) return console.log(message);
+        process.stdout.write('\r\x1b[K');
+        console.log(message);
+        this.rl.prompt(true);
     }
 
-    /** Ejecuta una acción de una en una; lo que llegue mientras tanto se descarta. */
+    onLine(line) {
+        if (!line.trim()) return this.rl.prompt();
+        this.enqueue(() => this.dispatch(line.trim()));
+    }
+
+    /** Las acciones se atienden de una en una, en el orden en que llegan. */
+    enqueue(action) {
+        this.queue = this.queue.then(() => this.run(action));
+        return this.queue;
+    }
+
     async run(action) {
-        if (this.busy) {
-            console.log('⏳ Espera a que termine la acción en curso');
-            return;
-        }
         this.busy = true;
         try {
             await action();
@@ -89,109 +94,93 @@ class Cli {
         }
     }
 
-    /**
-     * Pide una línea al usuario. La pregunta se pone como prompt de readline
-     * para que, al borrar o corregir, readline redibuje la línea correctamente.
-     */
-    ask(question) {
-        this.rl.setPrompt(question);
-        this.rl.prompt();
-        return new Promise((resolve) => { this.waiter = resolve; });
-    }
-
-    endAsk() {
-        this.waiter = null;
-        this.rl.setPrompt(PROMPT);
-    }
-
-    /** Graba la voz del profesor y la transcribe; si no se puede, la pide por teclado. */
-    async listen() {
-        if (this.recorder.available) {
-            const seconds = this.config.audio.maxRecordSeconds;
-            console.log(`🎤 Escuchando (máx. ${seconds} s). Pulsa ENTER cuando termines de hablar...`);
-            const recording = this.recorder.record(seconds);
-            const enter = this.ask('');
-            const audio = await Promise.race([recording.done, enter.then(() => { recording.stop(); return recording.done; })]);
-            this.endAsk();
-            console.log(`📊 Audio capturado: ${audio.length} bytes`);
-
-            const text = await this.recognizer.recognize(audio);
-            if (text !== null) {
-                console.log(`🗣️  Texto reconocido: "${text}"`);
-                return text;
-            }
-        }
-        return this.ask('Escribe lo que ha dicho el profesor: ');
-    }
-
     async dispatch(line) {
         const [command, ...args] = line.split(/\s+/);
         switch (command.toLowerCase()) {
             case 'ayuda': return console.log(HELP);
             case 'salir': return this.rl.close();
             case 'tarjeta': return this.onCard(args[0] || '');
-            case 'escuchar': return this.freeListen();
+            case 'estado': return this.showStatus();
+            case 'horario': return this.showSchedule(args[0]);
             case 'misiones': return this.showMissions();
             case 'alumnos': return this.showStudents();
             case 'puntos': return this.givePoints(args);
-            case 'intento': return this.registerAttempt(args[0]);
-            case 'cerrar': return this.closeMission(args[0]);
             case 'avatar': return this.showAvatar();
             case 'registrar': return this.registerCard(args);
             case 'tarjetas': return this.showCards();
             case 'sincronizar': return this.sync();
-            case 'microfono': return this.testMicrophone();
-            case 'estado': return this.showStatus();
+            case 'microfono': return this.testMicrophone(Number(args[0]) || 20);
             default:
                 // Un lector NFC de tipo teclado escribe solo el UID.
                 if (args.length === 0 && this.nfc.mode === 'keyboard') return this.onCard(command);
+                // Sin micrófono, las frases del profesor se escriben a mano.
+                if (this.listener.feed && this.listener.active) return this.listener.feed(line);
+                if (this.listener.feed) return console.log('❓ Comando no reconocido. Si es lo que dice el profesor, primero tiene que pasar su tarjeta.');
                 console.log('❓ Comando no reconocido. Escribe "ayuda".');
         }
     }
 
     async onCard(uid) {
         if (!uid) return console.log('Uso: tarjeta <UID>');
-        const event = await this.classroom.handleCard(uid.toUpperCase());
-
-        if (event.kind === 'teacher') {
-            console.log(`👩‍🏫 Tarjeta de profesor: ${subjectLabel(event.subject)}`);
-            if (!event.mission) return console.log('⭕ No se ha dicho nada; no se crea misión');
-            return this.reportMission(event.mission);
-        }
-
-        const name = event.student.name;
-        if (!event.result) return console.log(`🙋 ${name}: no hay misiones abiertas ahora mismo`);
-        const { mission, pointsAwarded, newAchievements, student } = event.result;
-        console.log(`✅ ${name} ha realizado "${mission.title}" (+${pointsAwarded} puntos, total ${student.points})`);
-        this.reportAchievements(name, newAchievements);
+        await this.classroom.handleCard(uid.toUpperCase());
     }
 
-    reportMission(mission) {
-        const where = mission.queued ? 'guardada sin conexión (se enviará al sincronizar)' : 'guardada';
-        console.log(`🎯 Misión ${where}: ${formatMission(mission)}`);
-        if (this.config.voiceResponse.enabled) {
-            this.speak('Pasa tu tarjeta por el lector cuando termines', this.config.voiceResponse);
+    printEvent(event) {
+        if (event.kind === 'mission-ready' && this.config.voiceResponse.enabled) {
+            this.speak('Misión preparada', this.config.voiceResponse);
         }
+        const lines = describeEvent(event, { manual: Boolean(this.listener.feed) });
+        if (lines) this.say(lines);
     }
 
-    reportAchievements(name, achievements) {
-        for (const achievement of achievements) {
-            console.log(`🏆 ¡${name} consigue el logro "${achievement.title}"! (${achievement.description})`);
+    async showStatus() {
+        let server = 'conectado';
+        try {
+            await this.api.health();
+        } catch (error) {
+            server = `sin conexión (${error.message})`;
         }
+        const { slot, session, activity } = this.classroom.status();
+        console.log(`  🌐 API: ${this.config.api.url} → ${server}`);
+        console.log(`  🎤 Escucha: ${this.listener.name}`);
+        console.log(`  💳 Lector NFC: ${this.nfc.status}`);
+        console.log(`  🕘 Franja actual: ${slot ? `${slot.start}-${slot.end} · ${subjectLabel(slot.subject)} (${slot.teacherId})` : 'ninguna'}`);
+        console.log(`  👩‍🏫 Sesión: ${session ? `${session.teacher.name} · ${subjectLabel(session.subject)}${session.substitute ? ' (sustituto)' : ''}` : 'cerrada'}`);
+        if (activity) {
+            const what = activity.phase === 'listening' ? 'escuchando al profesor' : `${activity.title} [${modalityLabel(activity.modality)}]`;
+            const who = activity.students.length ? ` · han salido: ${activity.students.join(', ')}` : '';
+            console.log(`  🎯 Misión en curso: ${what}${who}`);
+        }
+        console.log(`  📦 Misiones en cola sin conexión: ${this.api.readQueue().length}`);
     }
 
-    async freeListen() {
-        const text = await this.listen();
-        if (!text) return console.log('⭕ Sin transcripción');
-        const mission = await this.classroom.handleTranscript(text);
-        if (!mission) return console.log('🔍 La frase no pide ninguna misión');
-        this.reportMission(mission);
+    async showSchedule(action) {
+        if (action === 'actualizar') {
+            console.log(`📅 Horario cargado desde: ${await this.classroom.loadSchedule()}`);
+        }
+        const today = this.classroom.schedule.slotsOn(this.classroom.clock.now());
+        if (today.length === 0) return console.log('📅 Hoy no hay clases en el horario');
+        let names = {};
+        try {
+            names = Object.fromEntries((await this.api.listTeachers()).map((t) => [t.id, t.name]));
+        } catch (error) {
+            // sin conexión: se muestran los identificadores
+        }
+        const current = this.classroom.status().slot;
+        for (const s of today) {
+            const mark = current && s.start === current.start ? '▶' : ' ';
+            console.log(`  ${mark} ${s.start}-${s.end}  ${subjectLabel(s.subject)} · ${names[s.teacherId] || s.teacherId}`);
+        }
     }
 
     async showMissions() {
-        const open = [...await this.api.listMissions('pending'), ...await this.api.listMissions('in_progress')];
-        if (open.length === 0) return console.log('📭 No hay misiones abiertas');
-        open.forEach((m) => console.log(`  • ${formatMission(m)}`));
+        const missions = (await this.api.listMissions()).slice(-10).reverse();
+        if (missions.length === 0) return console.log('📭 Todavía no hay misiones registradas');
+        for (const m of missions) {
+            const time = new Date(m.confirmedAt).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+            const attempts = m.attempts && m.attempts.length ? ` · ${m.attempts.length} intento/s` : '';
+            console.log(`  • ${time} ${m.title} [${modalityLabel(m.modality)}] · ${m.participants.length} completada/s${attempts}`);
+        }
     }
 
     async showStudents() {
@@ -214,53 +203,36 @@ class Cli {
         const student = await this.findStudent(who);
         const result = await this.api.reward(student.id, Number(points), reason.join(' ') || undefined);
         console.log(`⭐ ${student.name}: ${Number(points) > 0 ? '+' : ''}${points} puntos (total ${result.student.points})`);
-        this.reportAchievements(student.name, result.newAchievements);
-    }
-
-    async registerAttempt(who) {
-        if (!who) return console.log('Uso: intento <alumno>');
-        const student = await this.findStudent(who);
-        const mission = await this.classroom.latestOpenMissionFor(student.id);
-        if (!mission) return console.log(`📭 No hay misiones abiertas para ${student.name}`);
-        const result = await this.api.attemptMission(mission.id, student.id);
-        console.log(`🔁 ${student.name} lo ha intentado en "${mission.title}" (+${result.pointsAwarded} puntos, total ${result.student.points}); la misión sigue abierta`);
-    }
-
-    async closeMission(id) {
-        let missionId = id;
-        if (!missionId) {
-            const open = [...await this.api.listMissions('in_progress'), ...await this.api.listMissions('pending')];
-            if (open.length === 0) return console.log('📭 No hay misiones abiertas');
-            missionId = open.sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0].id;
-        }
-        const mission = await this.api.closeMission(missionId);
-        console.log(`🔒 Misión cerrada: ${mission.title} (${mission.participants.length} participante/s)`);
+        for (const a of result.newAchievements) console.log(`🏆 ¡${student.name} consigue el logro "${a.title}"! (${a.description})`);
     }
 
     async showAvatar() {
         const avatar = await this.api.avatar();
         console.log(`🦊 ${avatar.name}: "${avatar.message}"`);
-        avatar.missions.forEach((m) => console.log(`   📜 ${formatMission(m)}`));
+        avatar.missions.forEach((m) => console.log(`   📜 ${m.title} [${modalityLabel(m.modality)}]`));
         console.log(`   🏅 Ranking: ${avatar.ranking.map((r) => `${r.name} ${r.points}`).join(' · ')}`);
     }
 
     async registerCard([role, uid, ...rest]) {
-        const value = rest.join(' ');
-        if (!['profesor', 'alumno'].includes(role) || !uid || !value) {
-            return console.log('Uso: registrar profesor <UID> <asignatura> | registrar alumno <UID> <nombre>');
+        if (!['profesor', 'alumno'].includes(role) || !uid || rest.length === 0) {
+            return console.log('Uso: registrar profesor <UID> <nombre> [asig1,asig2] | registrar alumno <UID> <nombre>');
         }
         if (role === 'profesor') {
-            const subject = Object.keys(SUBJECTS).find((key) => key === value.toLowerCase()) || value.toLowerCase();
-            await this.api.registerCard({ uid: uid.toUpperCase(), role: 'teacher', subject });
-            return console.log(`💳 Tarjeta ${uid.toUpperCase()} → profesor de ${subjectLabel(subject)}`);
+            // Si la última palabra es una lista de asignaturas conocidas, se separa del nombre.
+            const last = rest[rest.length - 1].toLowerCase().split(',');
+            const hasSubjects = rest.length > 1 && last.every((s) => SUBJECTS[s]);
+            const name = (hasSubjects ? rest.slice(0, -1) : rest).join(' ');
+            const card = await this.api.registerCard({ uid: uid.toUpperCase(), role: 'teacher', name, subjects: hasSubjects ? last : undefined });
+            const subjects = card.teacher.subjects.map(subjectLabel).join(', ') || 'sin asignaturas';
+            return console.log(`💳 Tarjeta ${card.uid} → profesor ${card.teacher.name} (${subjects})`);
         }
-        const card = await this.api.registerCard({ uid: uid.toUpperCase(), role: 'student', name: value });
+        const card = await this.api.registerCard({ uid: uid.toUpperCase(), role: 'student', name: rest.join(' ') });
         console.log(`💳 Tarjeta ${card.uid} → alumno ${card.student.name}`);
     }
 
     async showCards() {
         for (const card of await this.api.listCards()) {
-            const owner = card.role === 'teacher' ? `profesor · ${subjectLabel(card.subject)}` : `alumno · ${card.studentId}`;
+            const owner = card.role === 'teacher' ? `profesor · ${card.teacherId}` : `alumno · ${card.studentId}`;
             console.log(`  • ${card.uid}: ${owner}`);
         }
     }
@@ -270,29 +242,21 @@ class Cli {
         console.log(`🔄 Enviadas ${sent} misión/es pendientes; quedan ${remaining}`);
     }
 
-    async testMicrophone() {
-        if (!this.recorder.available) {
-            return console.log(`🎤 Sin captura de audio en ${this.recorder.platform}: se usará transcripción manual`);
+    /** Escucha durante unos segundos y muestra las frases reconocidas, sin crear misiones. */
+    async testMicrophone(seconds) {
+        if (this.listener.feed) {
+            return console.log(`🎤 Escucha manual: ${this.listener.name}. Revisa "estado" y la configuración de speech.`);
         }
-        const text = await this.listen();
-        console.log(text ? `✅ Reconocido: "${text}"` : '⚠️  No se reconoció texto');
-    }
-
-    async showStatus() {
-        let server = 'conectado';
-        try {
-            await this.api.health();
-        } catch (error) {
-            server = `sin conexión (${error.message})`;
-        }
-        const queued = this.api.readQueue().length;
-        console.log(`  🌐 API: ${this.config.api.url} → ${server}`);
-        console.log(`  🧠 Intérprete: ${this.config.interpreter.url || 'local'}`);
-        console.log(`  🎤 Micrófono: ${this.recorder.available ? `${this.recorder.platform} · ${this.config.audio.device}` : 'manual (teclado)'}`);
-        console.log(`  🗣️  Reconocimiento: ${this.recognizer.status}`);
-        console.log(`  💳 Lector NFC: ${this.nfc.status}`);
-        console.log(`  📚 Asignatura activa: ${this.classroom.describeSubject()}`);
-        console.log(`  📦 Misiones en cola sin conexión: ${queued}`);
+        if (this.classroom.activity) return console.log('⏳ Hay una misión en curso; prueba el micrófono cuando termine');
+        console.log(`🎤 Escuchando ${seconds} s con ${this.listener.name}. Habla con normalidad...`);
+        let count = 0;
+        const listening = this.listener.start((text) => {
+            count++;
+            console.log(`   🗣️  "${text}"`);
+        });
+        await new Promise((resolve) => setTimeout(resolve, seconds * 1000));
+        listening.stop();
+        console.log(count ? `✅ ${count} frase/s reconocida/s` : '⚠️  No se reconoció ninguna frase');
     }
 }
 

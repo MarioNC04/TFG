@@ -1,9 +1,23 @@
 {
+  "teachers": [
+    { "id": "prof-ana", "name": "Ana", "subjects": ["matematicas", "ciencias"] },
+    { "id": "prof-luis", "name": "Luis", "subjects": ["lengua", "ingles"] },
+    { "id": "prof-marta", "name": "Marta", "subjects": ["musica"] }
+  ],
+  "schedule": {
+    "classroom": "aula-1",
+    "slots": [
+      { "days": ["lunes", "martes", "miercoles", "jueves", "viernes"], "start": "09:00", "end": "10:00", "teacherId": "prof-ana", "subject": "matematicas" },
+      { "days": ["lunes", "martes", "miercoles", "jueves", "viernes"], "start": "10:00", "end": "11:00", "teacherId": "prof-ana", "subject": "ciencias" },
+      { "days": ["lunes", "martes", "miercoles", "jueves", "viernes"], "start": "11:00", "end": "12:00", "teacherId": "prof-luis", "subject": "lengua" },
+      { "days": ["lunes", "martes", "miercoles", "jueves", "viernes"], "start": "12:30", "end": "13:30", "teacherId": "prof-luis", "subject": "ingles" },
+      { "days": ["lunes", "miercoles", "viernes"], "start": "13:30", "end": "14:00", "teacherId": "prof-marta", "subject": "musica" }
+    ]
+  },
   "cards": {
-    "PROF-MATES": { "role": "teacher", "name": "Tarjeta de Matemáticas", "subject": "matematicas" },
-    "PROF-LENGUA": { "role": "teacher", "name": "Tarjeta de Lengua", "subject": "lengua" },
-    "PROF-INGLES": { "role": "teacher", "name": "Tarjeta de Inglés", "subject": "ingles" },
-    "PROF-CIENCIAS": { "role": "teacher", "name": "Tarjeta de Ciencias", "subject": "ciencias" },
+    "PROF-ANA": { "role": "teacher", "teacherId": "prof-ana" },
+    "PROF-LUIS": { "role": "teacher", "teacherId": "prof-luis" },
+    "PROF-MARTA": { "role": "teacher", "teacherId": "prof-marta" },
     "ALU-001": { "role": "student", "studentId": "alu-001" },
     "ALU-002": { "role": "student", "studentId": "alu-002" },
     "ALU-003": { "role": "student", "studentId": "alu-003" },

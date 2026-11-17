@@ -2,6 +2,8 @@
 
 Esta guía proporciona instrucciones paso a paso para implementar el sistema de detección de voz en un entorno educativo real.
 
+> **Nota:** esta guía describe la primera versión del proyecto (detector de palabras con el servicio `voice-detector-classroom`). Para la versión actual (horario, sesiones de clase, Vosk y arranque automático) consulta `README.md` y el resumen inicial de `RASPBERRY_PI_SETUP.md`.
+
 ## 🎯 Resumen del Sistema
 
 **Propósito**: Detectar automáticamente cuando un profesor dice "voluntario" en clase y responder con "Hola mundo" por consola, diseñado para funcionar en Raspberry Pi.

@@ -8,7 +8,8 @@
     "server": "node server/index.js",
     "dev": "nodemon main.js",
     "test": "node --test",
-    "test-mic": "node scripts/probar-microfono.js"
+    "test-mic": "node scripts/probar-microfono.js",
+    "demo": "node scripts/demo.js"
   },
   "keywords": [
     "raspberry-pi",

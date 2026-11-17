@@ -102,6 +102,11 @@ credentials/*
 # Datos de la API simulada (se regeneran desde server/seed.json)
 data/
 
+# Modelo de Vosk y entorno de Python (los instala instalar.sh)
+models/
+.venv/
+__pycache__/
+
 # Backup files
 *.backup
 *.bak

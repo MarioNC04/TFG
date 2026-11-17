@@ -1,11 +1,14 @@
 /**
  * Intérprete local de las frases del profesor.
  *
- * A partir de una transcripción ("Necesito un voluntario para el ejercicio de
- * matemáticas") deduce la asignatura, el tipo de actividad y si la misión es
+ * A partir de una transcripción ("Que salga alguien a la pizarra a corregir
+ * el ejercicio") deduce el tipo de actividad, la asignatura y si la misión es
  * individual o para toda la clase. Es el mismo intérprete que expone el
  * servidor simulado en /api/interpret, de modo que puede sustituirse por un
  * flujo de Node-RED o un servicio de IA sin cambiar el resto del sistema.
+ *
+ * El único dato obligatorio para crear una misión es el tipo (`typeFound`).
+ * Si no se dice lo contrario, la misión es individual.
  */
 
 const SUBJECTS = {
@@ -29,16 +32,25 @@ const SUBJECTS = {
 };
 
 const TYPES = {
-    ejercicio: { label: 'Ejercicio', words: ['ejercicio', 'problema', 'operacion', 'cuenta', 'actividad'] },
-    lectura: { label: 'Lectura', words: ['leer', 'lectura', 'texto', 'cuento'] },
-    pregunta: { label: 'Pregunta', words: ['pregunta', 'responder', 'contestar', 'adivinanza'] },
-    pizarra: { label: 'Pizarra', words: ['pizarra', 'salir a la pizarra'] },
-    exposicion: { label: 'Exposición', words: ['explicar', 'exponer', 'presentar', 'contar a la clase'] },
-    ayuda: { label: 'Ayuda en el aula', words: ['repartir', 'recoger', 'ordenar', 'ayudar', 'borrar'] }
+    pizarra: { label: 'Pizarra', words: ['pizarra'] },
+    ejercicio: {
+        label: 'Ejercicio',
+        words: ['ejercicio', 'ejercicios', 'problema', 'problemas', 'operacion', 'cuenta', 'actividad',
+            'ficha', 'deberes', 'corregir', 'corregimos', 'resolver']
+    },
+    lectura: { label: 'Lectura', words: ['leer', 'lee', 'leemos', 'lectura', 'texto', 'cuento'] },
+    pregunta: { label: 'Pregunta', words: ['pregunta', 'responder', 'responde', 'contestar', 'contesta', 'adivinanza'] },
+    exposicion: { label: 'Exposición', words: ['explicar', 'explica', 'exponer', 'presentar', 'contar a la clase'] },
+    interpretacion: { label: 'Interpretación', words: ['cantar', 'cantamos', 'tocar', 'bailar'] },
+    ayuda: { label: 'Ayuda en el aula', words: ['repartir', 'reparte', 'recoger', 'recoge', 'ordenar', 'ayudar', 'borrar', 'borra'] }
 };
 
 const DEFAULT_TYPE = 'ejercicio';
-const VOLUNTEER_WORDS = ['voluntario', 'voluntaria', 'voluntarios', 'alguien', 'quien quiere'];
+// "Sal", "que salga"... indican que un alumno sale delante de la clase. Si la
+// frase no dice otra actividad (leer, contestar...), se entiende que a la pizarra.
+const STEP_OUT_WORDS = ['sal', 'salga', 'salir', 'sale', 'salgas'];
+// Mismas palabras para el intérprete local y para el del servidor.
+const VOLUNTEER_WORDS = ['voluntario', 'voluntaria', 'voluntarios', 'alguien', 'quien quiere', 'quien sale', 'que salga', 'sal'];
 const GROUP_WORDS = ['todos', 'todas', 'toda la clase', 'entre todos', 'equipo', 'equipos', 'grupo', 'grupos'];
 
 function normalize(text) {
@@ -49,6 +61,17 @@ function normalize(text) {
         .replace(/[^a-z0-9ñ\s]/g, ' ')
         .replace(/\s+/g, ' ')
         .trim();
+}
+
+function countWords(text) {
+    const normalized = normalize(text);
+    return normalized ? normalized.split(' ').length : 0;
+}
+
+/** Recorta la frase a sus primeras `max` palabras. */
+function limitWords(text, max) {
+    const words = (text || '').trim().split(/\s+/);
+    return words.length > max ? words.slice(0, max).join(' ') : (text || '').trim();
 }
 
 function containsWord(normalized, word) {
@@ -73,37 +96,40 @@ function subjectLabel(subject) {
     return SUBJECTS[subject] ? SUBJECTS[subject].label : subject;
 }
 
+function missionTitle(type, subject) {
+    const typeLabel = TYPES[type] ? TYPES[type].label : type;
+    return subject ? `${typeLabel} de ${subjectLabel(subject)}` : typeLabel;
+}
+
 /**
  * Interpreta una frase del profesor.
  * @param {string} transcript Texto reconocido.
  * @param {object} [options]
- * @param {string} [options.subject] Asignatura de la tarjeta del profesor; tiene
- *   prioridad sobre la que se deduzca de la frase.
+ * @param {string} [options.subject] Asignatura del horario; tiene prioridad
+ *   sobre la que se deduzca de la frase.
  * @param {string} [options.defaultSubject] Asignatura si no se puede deducir.
- * @param {string[]} [options.volunteerKeywords] Palabras que indican misión individual.
  */
 function parseMission(transcript, options = {}) {
     const normalized = normalize(transcript);
-    const volunteerWords = (options.volunteerKeywords || VOLUNTEER_WORDS).map(normalize);
 
-    const isVolunteer = volunteerWords.some((word) => containsWord(normalized, word));
+    const isVolunteer = VOLUNTEER_WORDS.some((word) => containsWord(normalized, word));
     const isGroup = !isVolunteer && GROUP_WORDS.some((word) => containsWord(normalized, word));
 
     const subject = options.subject || findFirst(normalized, SUBJECTS) || options.defaultSubject || null;
-    const type = findFirst(normalized, TYPES) || DEFAULT_TYPE;
-    const modality = isGroup ? 'grupal' : 'individual';
-
-    const typeLabel = TYPES[type].label;
-    const title = subject ? `${typeLabel} de ${subjectLabel(subject)}` : typeLabel;
+    const stepsOut = STEP_OUT_WORDS.some((word) => containsWord(normalized, word));
+    const foundType = findFirst(normalized, TYPES) || (stepsOut ? 'pizarra' : null);
+    const type = foundType || DEFAULT_TYPE;
 
     return {
-        isMission: isVolunteer || isGroup,
-        title,
+        typeFound: foundType !== null,
+        isMission: foundType !== null || isVolunteer || isGroup,
+        groupFound: isGroup,
+        title: missionTitle(type, subject),
         subject,
         type,
-        modality,
+        modality: isGroup ? 'grupal' : 'individual',
         transcript: (transcript || '').trim()
     };
 }
 
-module.exports = { parseMission, normalize, subjectLabel, SUBJECTS, TYPES };
+module.exports = { parseMission, normalize, countWords, limitWords, missionTitle, subjectLabel, SUBJECTS, TYPES };

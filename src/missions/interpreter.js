@@ -4,22 +4,23 @@
  * disponible, el intérprete local.
  *
  * El servicio externo recibe POST { transcript, subject } y debe devolver
- * { title, subject, type, modality, isMission }.
+ * { title, subject, type, modality, typeFound, groupFound }. El dato
+ * imprescindible es typeFound (la frase indica una actividad).
  */
 
 const { parseMission } = require('./parser');
 
 class MissionInterpreter {
-    constructor({ url = null, timeoutMs = 3000, defaultSubject, volunteerKeywords }) {
+    constructor({ url = null, timeoutMs = 3000, defaultSubject }) {
         this.url = url;
         this.timeoutMs = timeoutMs;
-        this.localOptions = { defaultSubject, volunteerKeywords };
+        this.localOptions = { defaultSubject };
     }
 
     /**
      * @param {string} transcript
      * @param {object} [context]
-     * @param {string} [context.subject] Asignatura impuesta (tarjeta del profesor).
+     * @param {string} [context.subject] Asignatura impuesta (la del horario).
      * @param {string} [context.defaultSubject] Asignatura si la frase no menciona ninguna.
      */
     async interpret(transcript, { subject, defaultSubject } = {}) {

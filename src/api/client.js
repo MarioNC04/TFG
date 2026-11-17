@@ -1,13 +1,13 @@
 /**
  * Cliente de la API de TecnoCRA (o del servidor local que la simula).
  *
- * Si el servidor no responde al crear una misión, la misión se guarda en una
- * cola local y se reenvía en la siguiente sincronización, para no perder nada
- * de lo que ocurre en el aula.
+ * Si el servidor no responde al confirmar una misión, la confirmación se
+ * guarda en una cola local y se reenvía en la siguiente sincronización, para
+ * no perder nada de lo que ocurre en el aula. Cada misión lleva un id propio,
+ * así que reenviarla dos veces no duplica los puntos.
  */
 
-const fs = require('fs');
-const path = require('path');
+const { readJson, writeJsonAtomic } = require('../storage');
 
 class ApiError extends Error {
     constructor(status, message) {
@@ -41,25 +41,27 @@ class ApiClient {
     }
 
     health() { return this.request('GET', '/health'); }
+    getSchedule() { return this.request('GET', '/schedule'); }
+    listTeachers() { return this.request('GET', '/teachers'); }
     getCard(uid) { return this.request('GET', `/cards/${encodeURIComponent(uid)}`); }
     listCards() { return this.request('GET', '/cards'); }
     registerCard(card) { return this.request('POST', '/cards', card); }
     listStudents() { return this.request('GET', '/students'); }
-    listMissions(status) { return this.request('GET', `/missions${status ? `?status=${status}` : ''}`); }
-    completeMission(id, studentId) { return this.request('POST', `/missions/${id}/complete`, { studentId }); }
-    attemptMission(id, studentId) { return this.request('POST', `/missions/${id}/attempt`, { studentId }); }
-    closeMission(id) { return this.request('POST', `/missions/${id}/close`); }
+    listMissions() { return this.request('GET', '/missions'); }
     reward(studentId, points, reason) { return this.request('POST', `/students/${studentId}/rewards`, { points, reason }); }
     avatar() { return this.request('GET', '/avatar'); }
 
-    /** Crea la misión; si no hay conexión la deja en cola y devuelve { queued: true }. */
-    async createMission(mission) {
+    /**
+     * Envía una misión cerrada por el profesor. Si no hay conexión la deja en
+     * cola y devuelve { queued: true }.
+     */
+    async confirmMission(mission) {
         try {
-            return await this.request('POST', '/missions', mission);
+            return await this.request('POST', '/missions/confirmed', mission);
         } catch (error) {
             if (error.status !== 0 || !this.queueFile) throw error;
             this.writeQueue([...this.readQueue(), mission]);
-            return { ...mission, queued: true };
+            return { mission, results: [], queued: true };
         }
     }
 
@@ -69,7 +71,7 @@ class ApiClient {
         let sent = 0;
         for (const mission of pending) {
             try {
-                await this.request('POST', '/missions', mission);
+                await this.request('POST', '/missions/confirmed', mission);
                 sent++;
             } catch (error) {
                 break;
@@ -80,14 +82,11 @@ class ApiClient {
     }
 
     readQueue() {
-        if (!this.queueFile || !fs.existsSync(this.queueFile)) return [];
-        return JSON.parse(fs.readFileSync(this.queueFile, 'utf8'));
+        return readJson(this.queueFile, []);
     }
 
     writeQueue(missions) {
-        if (!this.queueFile) return;
-        fs.mkdirSync(path.dirname(this.queueFile), { recursive: true });
-        fs.writeFileSync(this.queueFile, JSON.stringify(missions, null, 2));
+        if (this.queueFile) writeJsonAtomic(this.queueFile, missions);
     }
 }
 

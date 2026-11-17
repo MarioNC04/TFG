@@ -38,26 +38,26 @@ else
     IS_RPI=false
 fi
 
-print_step "[1/6] Actualizando sistema..."
+print_step "[1/7] Actualizando sistema..."
 sudo apt update
 if [ $? -ne 0 ]; then
     print_error "Error actualizando repositorios"
     exit 1
 fi
 
-print_step "[2/6] Instalando dependencias del sistema..."
+print_step "[2/7] Instalando dependencias del sistema..."
 # Dependencias básicas
 sudo apt install -y curl wget gnupg2 software-properties-common
 
 # Dependencias de audio para Raspberry Pi
 if [ "$IS_RPI" = true ]; then
     print_status "Instalando dependencias de audio para Raspberry Pi..."
-    sudo apt install -y alsa-utils sox espeak pulseaudio pulseaudio-utils
+    sudo apt install -y alsa-utils sox espeak pulseaudio pulseaudio-utils python3-venv unzip
 else
-    sudo apt install -y alsa-utils sox espeak
+    sudo apt install -y alsa-utils sox espeak python3-venv unzip
 fi
 
-print_step "[3/6] Verificando/Instalando Node.js..."
+print_step "[3/7] Verificando/Instalando Node.js..."
 # Verificar si Node.js ya está instalado
 if command -v node &> /dev/null; then
     NODE_VERSION=$(node --version | sed 's/v//')
@@ -93,7 +93,7 @@ else
     exit 1
 fi
 
-print_step "[4/6] Configurando audio para Raspberry Pi..."
+print_step "[4/7] Configurando audio para Raspberry Pi..."
 if [ "$IS_RPI" = true ]; then
     # Añadir usuario al grupo audio
     sudo usermod -a -G audio $USER
@@ -122,7 +122,7 @@ EOF
     fi
 fi
 
-print_step "[5/6] Instalando dependencias de Node.js..."
+print_step "[5/7] Instalando dependencias de Node.js..."
 npm install
 
 if [ $? -ne 0 ]; then
@@ -145,13 +145,42 @@ if [ $? -ne 0 ]; then
     fi
 fi
 
-print_step "[6/6] Verificando instalación..."
+print_step "[6/7] Instalando el reconocimiento de voz local (Vosk)..."
+# Entorno de Python propio del proyecto (Raspberry Pi OS no deja instalar
+# paquetes de pip en el Python del sistema).
+VOSK_MODEL="vosk-model-small-es-0.42"
+if [ ! -d .venv ]; then
+    python3 -m venv .venv
+fi
+./.venv/bin/pip install --upgrade pip > /dev/null
+./.venv/bin/pip install vosk
+if [ $? -ne 0 ]; then
+    print_warning "No se pudo instalar vosk; el sistema pedirá las frases por teclado"
+fi
+
+# Modelo en español (unos 40 MB). Se descarga una sola vez.
+if [ ! -d "models/$VOSK_MODEL" ]; then
+    mkdir -p models
+    wget -q --show-progress -O "models/$VOSK_MODEL.zip" "https://alphacephei.com/vosk/models/$VOSK_MODEL.zip" \
+        && unzip -q "models/$VOSK_MODEL.zip" -d models \
+        && rm "models/$VOSK_MODEL.zip"
+    if [ -d "models/$VOSK_MODEL" ]; then
+        print_status "✅ Modelo de Vosk instalado en models/$VOSK_MODEL"
+    else
+        print_warning "No se pudo descargar el modelo de Vosk"
+    fi
+else
+    print_status "✅ Modelo de Vosk ya instalado"
+fi
+
+print_step "[7/7] Verificando instalación..."
 echo
 print_status "📋 Verificando paquetes instalados:"
 
 # Verificar cada dependencia
 node -e "try { require('@google-cloud/speech'); console.log('✅ @google-cloud/speech OK'); } catch(e) { console.log('❌ @google-cloud/speech FALLO'); }" 2>/dev/null
 node -e "try { require('say'); console.log('✅ say OK'); } catch(e) { console.log('❌ say FALLO'); }" 2>/dev/null
+./.venv/bin/python -c "import vosk; print('✅ vosk OK')" 2>/dev/null || echo "❌ vosk FALLO"
 
 echo
 print_status "🔧 Verificando sistema de audio..."
@@ -178,6 +207,8 @@ print_status "🎯 Comandos disponibles:"
 echo "   • npm run server   - Arrancar la API simulada (TecnoCRA)"
 echo "   • npm start        - Iniciar el sistema del aula"
 echo "   • npm run test-mic - Probar micrófono"
+echo "   • npm run demo     - Demo de una mañana de clase sin hardware"
+echo "   • ./setup-service.sh - Arrancar el sistema al encender la Raspberry"
 echo "   • npm test         - Ejecutar los tests"
 echo
 if [ "$IS_RPI" = true ]; then

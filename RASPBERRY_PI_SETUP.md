@@ -2,6 +2,41 @@
 
 Esta guía detalla la configuración específica del sistema de detección de voz en Raspberry Pi para entornos educativos.
 
+## ⚡ Resumen: puesta en marcha en una Raspberry Pi 4
+
+```bash
+./instalar.sh          # Node.js, audio, Vosk y el modelo de voz en español (~40 MB)
+npm run test-mic       # comprobar el micrófono (ajusta audio.device en config.json)
+./setup-service.sh     # arrancar el sistema al encender la Raspberry
+sudo reboot
+```
+
+### Reconocimiento de voz local (Vosk)
+
+- `instalar.sh` crea un entorno de Python en `.venv/`, instala `vosk` y descarga el modelo `vosk-model-small-es-0.42` en `models/`.
+- `config.json` → `speech.provider: "vosk"`, `speech.vosk.python: "./.venv/bin/python"` y `speech.vosk.modelPath`.
+- Solo se escucha tras la tarjeta del profesor y como mucho `session.listenMinutes` (15). El audio se transcribe en la propia Raspberry y no se guarda.
+- Con la consola del aula en marcha, `microfono 20` muestra durante 20 s las frases que reconoce, sin crear misiones.
+- Rendimiento: el modelo pequeño funciona en tiempo real en una Raspberry Pi 4 y ocupa unos 300 MB de RAM. Tarda uno o dos segundos en cargarse al empezar cada escucha.
+
+### Arranque automático
+
+`setup-service.sh` activa el inicio de sesión automático en la consola (tty1) y añade a `~/.bash_profile` un bucle que arranca `node main.js` y lo reinicia si se cierra. Así el lector NFC de tipo teclado escribe en el sistema y la pantalla muestra lo que ocurre.
+
+El sistema no inicia sesiones de clase hasta que la hora esté sincronizada por internet (`timedatectl`). La Raspberry Pi no tiene reloj propio: sin red al encenderla, la hora sería incorrecta. Un módulo RTC lo evitaría.
+
+### Apagado seguro
+
+Desenchufar la Raspberry mientras escribe en la tarjeta SD puede dañar ficheros. Para reducir el riesgo:
+
+1. **Botón de apagado** (recomendado). Un pulsador entre **GPIO3 (pin 5)** y **GND (pin 6)**, más esta línea en `/boot/firmware/config.txt` (`setup-service.sh` lo ofrece):
+   ```
+   dtoverlay=gpio-shutdown
+   ```
+   Al pulsarlo, el sistema operativo se apaga. Con la Raspberry apagada, el mismo botón la enciende.
+2. **Al terminar el horario**, el sistema cierra la sesión, descarta las misiones sin cerrar, sincroniza la cola sin conexión y muestra «Ya se puede apagar».
+3. **Ficheros JSON**: se guardan primero en un temporal y luego se renombran, así nunca quedan a medio escribir.
+
 ## 🔧 Configuración Inicial
 
 ### 1. Preparación del Sistema Operativo
@@ -199,14 +234,16 @@ static domain_name_servers=192.168.1.1 8.8.8.8
 ### Servicios de Sistema
 
 ```bash
-# Instalar el detector como servicio
+# Arranque automático en la consola tty1 (ver el resumen al principio)
 ./setup-service.sh
 
-# Comandos de control:
-sudo systemctl status voice-detector-classroom
-sudo systemctl restart voice-detector-classroom
-journalctl -u voice-detector-classroom -f
+# El sistema se ve en la pantalla conectada a la Raspberry. Desde SSH:
+pgrep -af "node main.js"        # ¿está en marcha?
+cat logs/misiones-descartadas.json
+cat logs/pending-missions.json  # misiones pendientes de enviar
 ```
+
+> Las versiones anteriores usaban el servicio `voice-detector-classroom`; `setup-service.sh` lo desactiva si lo encuentra. Algunos apartados de esta guía se refieren todavía a él.
 
 ### Monitoreo de Recursos
 

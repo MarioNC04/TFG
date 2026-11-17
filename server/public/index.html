@@ -31,7 +31,7 @@
     <div><div class="tag" id="name">Zorro</div><div class="bubble" id="message">Cargando…</div></div>
   </div>
   <div class="grid">
-    <section><h2>Misiones abiertas</h2><ul id="missions"></ul></section>
+    <section><h2>Últimas misiones</h2><ul id="missions"></ul></section>
     <section><h2>Ranking</h2><ul id="ranking"></ul></section>
     <section><h2>Últimos logros</h2><ul id="achievements"></ul></section>
   </div>
@@ -48,8 +48,8 @@
       el('message').textContent = avatar.message;
       el('message').classList.remove('error');
       el('missions').innerHTML = list(avatar.missions,
-        (m) => `${esc(m.title)}<br><span class="tag">${m.modality === 'grupal' ? 'Toda la clase' : 'Voluntario'} · ${m.participants.length} participante/s</span>`,
-        'No hay misiones ahora mismo');
+        (m) => `${esc(m.title)}<br><span class="tag">${m.modality === 'grupal' ? 'Toda la clase' : 'Individual'} · ${m.participants.length} completada/s${(m.attempts || []).length ? ` · ${m.attempts.length} intento/s` : ''}</span>`,
+        'Todavía no hay misiones');
       el('ranking').innerHTML = list(avatar.ranking, (r) => `${esc(r.name)}<span class="points">${r.points}</span>`, 'Sin alumnos');
       el('achievements').innerHTML = list(avatar.recentAchievements,
         (a) => `🏆 ${esc(a.title)}<br><span class="tag">${esc(a.student)}</span>`, 'Todavía no hay logros');

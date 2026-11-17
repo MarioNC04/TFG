@@ -2,14 +2,15 @@
  * API HTTP del servidor local que simula TecnoCRA.
  *
  *   GET  /api/health
- *   GET  /api/cards                      POST /api/cards {uid, role, subject|name}
+ *   GET  /api/teachers                   GET  /api/teachers/:id
+ *   GET  /api/schedule                   PUT  /api/schedule {classroom, slots}
+ *   GET  /api/cards                      POST /api/cards {uid, role, name, subjects}
  *   GET  /api/cards/:uid
  *   GET  /api/students                   GET  /api/students/:id
  *   POST /api/students/:id/rewards {points, reason}
- *   GET  /api/missions?status=pending    POST /api/missions
- *   POST /api/missions/:id/complete {studentId}
- *   POST /api/missions/:id/attempt {studentId}   (salió pero no la completó)
- *   POST /api/missions/:id/close
+ *   GET  /api/missions                   GET  /api/missions/:id
+ *   POST /api/missions/confirmed         Misión cerrada por el profesor:
+ *        {id, title, subject, type, modality, teacherId, completedBy, attempts, ...}
  *   POST /api/interpret {transcript, subject}   (simula el servicio de IA / Node-RED)
  *   GET  /api/avatar
  *   GET  /                               (panel web del avatar)
@@ -53,26 +54,29 @@ function send(res, status, body, contentType = 'application/json; charset=utf-8'
     res.writeHead(status, {
         'Content-Type': contentType,
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type'
+        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS'
     });
     res.end(contentType.startsWith('application/json') ? JSON.stringify(body) : body);
 }
 
 function buildRoutes(store, options) {
-    // Cada ruta: [método, patrón, manejador(params, body, query)]
+    // Cada ruta: [método, patrón, manejador(params, body)]
     return [
         ['GET', /^\/api\/health$/, () => ({ status: 'ok' })],
+        ['GET', /^\/api\/teachers$/, () => store.listTeachers()],
+        ['GET', /^\/api\/teachers\/([^/]+)$/, ([id]) => store.getTeacher(id)],
+        ['GET', /^\/api\/schedule$/, () => store.getSchedule()],
+        ['PUT', /^\/api\/schedule$/, (p, body) => store.setSchedule(body)],
         ['GET', /^\/api\/cards$/, () => store.listCards()],
         ['POST', /^\/api\/cards$/, (p, body) => store.registerCard(body.uid, body)],
         ['GET', /^\/api\/cards\/([^/]+)$/, ([uid]) => store.getCard(uid)],
         ['GET', /^\/api\/students$/, () => store.listStudents()],
         ['GET', /^\/api\/students\/([^/]+)$/, ([id]) => store.getStudent(id)],
         ['POST', /^\/api\/students\/([^/]+)\/rewards$/, ([id], body) => store.reward(id, body.points, body.reason)],
-        ['GET', /^\/api\/missions$/, (p, b, query) => store.listMissions(query.get('status'))],
-        ['POST', /^\/api\/missions$/, (p, body) => store.createMission(body)],
-        ['POST', /^\/api\/missions\/([^/]+)\/complete$/, ([id], body) => store.completeMission(id, body.studentId)],
-        ['POST', /^\/api\/missions\/([^/]+)\/attempt$/, ([id], body) => store.attemptMission(id, body.studentId)],
-        ['POST', /^\/api\/missions\/([^/]+)\/close$/, ([id]) => store.closeMission(id)],
+        ['GET', /^\/api\/missions$/, () => store.listMissions()],
+        ['POST', /^\/api\/missions\/confirmed$/, (p, body) => store.confirmMission(body)],
+        ['GET', /^\/api\/missions\/([^/]+)$/, ([id]) => store.getMission(id)],
         ['POST', /^\/api\/interpret$/, (p, body) => parseMission(body.transcript, {
             subject: body.subject,
             defaultSubject: body.defaultSubject || options.defaultSubject
@@ -97,9 +101,10 @@ function createApp(store, options = {}) {
                 const match = pattern.exec(url.pathname);
                 if (!match || req.method !== method) continue;
                 const params = match.slice(1).map(decodeURIComponent);
-                const body = method === 'POST' ? await readJson(req) : {};
-                const result = handler(params, body, url.searchParams);
-                return send(res, method === 'POST' && /\/(missions|cards)$/.test(url.pathname) ? 201 : 200, result);
+                const body = method === 'GET' ? {} : await readJson(req);
+                const result = handler(params, body);
+                const created = method === 'POST' && /\/(confirmed|cards)$/.test(url.pathname) && !result.duplicate;
+                return send(res, created ? 201 : 200, result);
             }
             throw new HttpError(404, `Ruta no encontrada: ${req.method} ${url.pathname}`);
         } catch (error) {

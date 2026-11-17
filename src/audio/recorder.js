@@ -102,4 +102,4 @@ class Recorder {
     }
 }
 
-module.exports = { Recorder, detectPlatform };
+module.exports = { Recorder, detectPlatform, buildCommand, commandExists };

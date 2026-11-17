@@ -9,16 +9,29 @@ const ROOT = path.resolve(__dirname, '..');
 
 const DEFAULTS = {
     language: 'es-ES',
-    volunteerKeywords: ['voluntario', 'voluntaria'],
     defaultSubject: 'matematicas',
-    speech: { provider: 'google', credentialsPath: './credentials/google-cloud-key.json' },
+    session: {
+        listenMinutes: 15,
+        minWords: 3,
+        maxWords: 25,
+        allowSubstitutes: true,
+        requireTimeSync: true,
+        checkIntervalSeconds: 30
+    },
+    speech: {
+        provider: 'vosk',
+        vosk: { python: 'python3', modelPath: './models/vosk-model-small-es-0.42' },
+        credentialsPath: './credentials/google-cloud-key.json'
+    },
     audio: { device: 'default', sampleRate: 16000, channels: 1, maxRecordSeconds: 8 },
     voiceResponse: { enabled: false, speed: 150 },
     nfc: { mode: 'keyboard' },
     api: { url: 'http://localhost:3000/api', timeoutMs: 3000 },
     interpreter: { url: 'http://localhost:3000/api/interpret' },
     server: { host: '0.0.0.0', port: 3000, dataFile: './data/db.json' },
-    pendingQueueFile: './logs/pending-missions.json'
+    pendingQueueFile: './logs/pending-missions.json',
+    discardedMissionsFile: './logs/misiones-descartadas.json',
+    scheduleCacheFile: './logs/horario.json'
 };
 
 function merge(base, override) {

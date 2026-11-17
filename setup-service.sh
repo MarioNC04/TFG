@@ -1,111 +1,81 @@
 #!/bin/bash
+#
+# setup-service.sh - Arranque automático del sistema del aula en la Raspberry Pi
+#
+# Al encender la Raspberry Pi:
+#   1. inicia sesión sola en la consola (tty1), sin pedir contraseña;
+#   2. arranca el sistema del aula en esa consola. Así el lector NFC de tipo
+#      teclado escribe directamente en él y la pantalla muestra lo que pasa;
+#   3. si el sistema se cierra por un error, vuelve a arrancarlo a los 5 s.
+#
+# El sistema no inicia sesiones de clase hasta que la hora esté sincronizada
+# por internet (la Raspberry Pi no tiene reloj propio).
+#
+# Opcional: botón de apagado seguro entre GPIO3 (pin 5) y GND (pin 6).
 
-# setup-service.sh - Configurar el detector de voz como servicio del sistema
-
-echo "🔧 Configurando Detector de Voz como servicio del sistema..."
-
-# Verificar que se ejecuta como usuario normal (no root)
 if [ "$EUID" -eq 0 ]; then
     echo "❌ No ejecutes este script como root/sudo"
     echo "💡 Ejecuta: ./setup-service.sh"
     exit 1
 fi
 
-# Obtener rutas
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-USER_NAME="$(whoami)"
-SERVICE_NAME="voice-detector-classroom"
+PROFILE="$HOME/.bash_profile"
+MARK="# avatar-aula: arranque automático"
 
-echo "📁 Directorio del proyecto: $SCRIPT_DIR"
-echo "👤 Usuario: $USER_NAME"
+echo "📁 Proyecto: $SCRIPT_DIR"
+echo "👤 Usuario: $(whoami)"
 
-# Crear archivo de servicio
-sudo tee /etc/systemd/system/$SERVICE_NAME.service > /dev/null << EOF
-[Unit]
-Description=Voice Keyword Detector for Classroom (Raspberry Pi)
-Documentation=https://github.com/your-repo/voice-detector
-After=network.target sound.target
-Wants=network.target
+# Servicio de versiones anteriores del proyecto
+if systemctl list-unit-files 2>/dev/null | grep -q '^voice-detector-classroom'; then
+    echo "🧹 Desactivando el servicio antiguo voice-detector-classroom"
+    sudo systemctl disable --now voice-detector-classroom
+fi
 
-[Service]
-Type=simple
-User=$USER_NAME
-Group=audio
-WorkingDirectory=$SCRIPT_DIR
-ExecStart=/usr/bin/node main.js
-Restart=always
-RestartSec=10
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=voice-detector
-
-# Variables de entorno
-Environment=NODE_ENV=production
-Environment=NPM_CONFIG_PREFIX=/home/$USER_NAME/.npm-global
-
-# Configuración de recursos
-LimitNOFILE=65536
-MemoryLimit=256M
-
-# Configuración de seguridad
-NoNewPrivileges=true
-ProtectSystem=strict
-ProtectHome=false
-ReadWritePaths=$SCRIPT_DIR/logs
-PrivateDevices=false
-SupplementaryGroups=audio
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-if [ $? -eq 0 ]; then
-    echo "✅ Archivo de servicio creado: /etc/systemd/system/$SERVICE_NAME.service"
+# 1. Inicio de sesión automático en la consola
+if command -v raspi-config > /dev/null; then
+    echo "🔑 Activando el inicio de sesión automático en la consola (tty1)"
+    sudo raspi-config nonint do_boot_behaviour B2
 else
-    echo "❌ Error creando archivo de servicio"
-    exit 1
+    echo "⚠️  raspi-config no disponible: activa a mano el inicio de sesión automático en tty1"
 fi
 
-# Crear directorio de logs si no existe
-if [ ! -d "$SCRIPT_DIR/logs" ]; then
-    mkdir -p "$SCRIPT_DIR/logs"
-    echo "📁 Directorio de logs creado"
+# 2 y 3. Arrancar el sistema al iniciar sesión en tty1, y reiniciarlo si se cierra
+if ! grep -q "$MARK" "$PROFILE" 2>/dev/null; then
+    cat >> "$PROFILE" << EOF
+
+$MARK
+if [ "\$(tty)" = "/dev/tty1" ]; then
+    cd "$SCRIPT_DIR"
+    while true; do
+        node main.js
+        echo "🔄 El sistema se ha cerrado; se vuelve a arrancar en 5 s (Ctrl+C para salir a la consola)"
+        sleep 5 || break
+    done
+fi
+EOF
+    echo "✅ Arranque automático añadido a $PROFILE"
+else
+    echo "✅ El arranque automático ya estaba configurado"
 fi
 
-# Establecer permisos
-chmod 755 "$SCRIPT_DIR/logs"
+mkdir -p "$SCRIPT_DIR/logs"
 
-# Recargar systemd
-echo "🔄 Recargando configuración de systemd..."
-sudo systemctl daemon-reload
-
-# Habilitar el servicio
-echo "⚡ Habilitando servicio para inicio automático..."
-sudo systemctl enable $SERVICE_NAME
-
-echo "✅ Servicio configurado correctamente"
-echo
-echo "📋 Comandos disponibles:"
-echo "   sudo systemctl start $SERVICE_NAME     # Iniciar servicio"
-echo "   sudo systemctl stop $SERVICE_NAME      # Detener servicio"
-echo "   sudo systemctl restart $SERVICE_NAME   # Reiniciar servicio"
-echo "   sudo systemctl status $SERVICE_NAME    # Ver estado"
-echo "   journalctl -u $SERVICE_NAME -f         # Ver logs en tiempo real"
-echo
-
-read -p "¿Deseas iniciar el servicio ahora? (y/N): " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    echo "🚀 Iniciando servicio..."
-    sudo systemctl start $SERVICE_NAME
-    sleep 2
-    
-    echo "📊 Estado del servicio:"
-    sudo systemctl status $SERVICE_NAME --no-pager
-    
+# Botón de apagado (opcional)
+CONFIG_TXT=/boot/firmware/config.txt
+[ -f "$CONFIG_TXT" ] || CONFIG_TXT=/boot/config.txt
+if [ -f "$CONFIG_TXT" ] && ! grep -q "dtoverlay=gpio-shutdown" "$CONFIG_TXT"; then
     echo
-    echo "📝 Para ver logs: journalctl -u $SERVICE_NAME -f"
+    echo "🔘 Botón de apagado: un pulsador entre GPIO3 (pin 5) y GND (pin 6)."
+    echo "   Al pulsarlo se apaga de forma segura; con la Raspberry apagada, la enciende."
+    read -p "¿Activarlo en $CONFIG_TXT? (y/N): " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        echo "dtoverlay=gpio-shutdown" | sudo tee -a "$CONFIG_TXT" > /dev/null
+        echo "✅ Botón de apagado activado (se aplica al reiniciar)"
+    fi
 fi
 
 echo
-echo "✅ Configuración completada. El detector de voz se iniciará automáticamente al encender el sistema."
+echo "✅ Listo. Reinicia para comprobarlo: sudo reboot"
+echo "   Para desactivarlo, borra el bloque \"$MARK\" de $PROFILE"
