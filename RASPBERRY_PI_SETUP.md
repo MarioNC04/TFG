@@ -5,11 +5,30 @@ Esta guía detalla la configuración específica del sistema de detección de vo
 ## ⚡ Resumen: puesta en marcha en una Raspberry Pi 4
 
 ```bash
-./instalar.sh          # Node.js, audio, Vosk y el modelo de voz en español (~40 MB)
+./instalar.sh          # Node.js, audio, Vosk, el modelo de voz en español (~40 MB) y el lector NFC
 npm run test-mic       # comprobar el micrófono (ajusta audio.device en config.json)
-./setup-service.sh     # arrancar el sistema al encender la Raspberry
+./setup-service.sh     # arrancar el sistema (y el servidor de TecnoCRA) al encender la Raspberry
 sudo reboot
 ```
+
+### Actualizar una Raspberry que ya tiene el proyecto
+
+```bash
+cd ~/TFG                       # o la carpeta donde esté el proyecto
+git status                     # si hay ficheros modificados, guárdalos con: git stash
+git fetch origin
+git checkout main
+git pull origin main
+./instalar.sh                  # instala lo nuevo: Vosk, el modelo de voz y el lector NFC (pcscd + nfc-pcsc)
+./setup-service.sh             # arranque automático; responde «Y» para arrancar también el servidor de TecnoCRA
+sudo reboot
+```
+
+- **Datos antiguos:** si queda un `data/db.json` de la primera versión, el servidor lo aparta solo como `data/db.json.antiguo-…` y empieza con `server/seed.json` (tarjetas, profesores y horario de ejemplo).
+- **`.env`:** si existe y tiene `SPEECH_PROVIDER=google` o `NFC_MODE=keyboard`, cámbialos a `vosk` y `pcsc` (o bórralos).
+- **Lector NFC:** con el lector conectado, `pcsc_scan` debe mostrar «Card inserted» al acercar una tarjeta (Ctrl+C para salir). Al arrancar, el sistema muestra el estado del lector.
+- **Micrófono:** `arecord -l` muestra el número de tarjeta del micrófono; ponlo en `audio.device` de `config.json` (por ejemplo `plughw:1,0`) y pruébalo con `npm run test-mic`.
+- **Panel:** desde otro equipo de la misma red, `http://<ip-de-la-raspberry>:3000` (la IP se ve con `hostname -I`).
 
 ### Reconocimiento de voz local (Vosk)
 
@@ -21,7 +40,7 @@ sudo reboot
 
 ### Arranque automático
 
-`setup-service.sh` activa el inicio de sesión automático en la consola (tty1) y añade a `~/.bash_profile` un bucle que arranca `node main.js` y lo reinicia si se cierra. Así el lector NFC de tipo teclado escribe en el sistema y la pantalla muestra lo que ocurre.
+`setup-service.sh` activa el inicio de sesión automático en la consola (tty1) y añade a `~/.bash_profile` un bucle que arranca `node main.js` y lo reinicia si se cierra, así la pantalla muestra lo que ocurre. Si se acepta, también crea el servicio `avatar-tecnocra`, que arranca el servidor simulado de TecnoCRA (API y panel) al encender la Raspberry y lo reinicia si se cae (`journalctl -u avatar-tecnocra -f` para ver su registro).
 
 El sistema no inicia sesiones de clase hasta que la hora esté sincronizada por internet (`timedatectl`). La Raspberry Pi no tiene reloj propio: sin red al encenderla, la hora sería incorrecta. Un módulo RTC lo evitaría.
 

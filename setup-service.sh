@@ -6,7 +6,9 @@
 #   1. inicia sesión sola en la consola (tty1), sin pedir contraseña;
 #   2. arranca el sistema del aula en esa consola. Así el lector NFC de tipo
 #      teclado escribe directamente en él y la pantalla muestra lo que pasa;
-#   3. si el sistema se cierra por un error, vuelve a arrancarlo a los 5 s.
+#   3. si el sistema se cierra por un error, vuelve a arrancarlo a los 5 s;
+#   4. (opcional) arranca también el servidor que simula TecnoCRA como servicio
+#      del sistema, con el panel en http://<ip-de-la-raspberry>:3000
 #
 # El sistema no inicia sesiones de clase hasta que la hora esté sincronizada
 # por internet (la Raspberry Pi no tiene reloj propio).
@@ -60,6 +62,37 @@ else
 fi
 
 mkdir -p "$SCRIPT_DIR/logs"
+
+# 4. Servidor simulado de TecnoCRA (API + panel) como servicio del sistema
+SERVICE=avatar-tecnocra
+echo
+echo "🌐 El servidor que simula TecnoCRA guarda tarjetas, horario y puntos, y sirve el panel."
+read -p "¿Arrancarlo también en esta Raspberry al encenderla? (Y/n): " -n 1 -r
+echo
+if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+    NODE_BIN="$(command -v node)"
+    sudo tee /etc/systemd/system/$SERVICE.service > /dev/null << UNIT
+[Unit]
+Description=Servidor simulado de TecnoCRA (API y panel del avatar)
+After=network.target
+
+[Service]
+Type=simple
+User=$(whoami)
+WorkingDirectory=$SCRIPT_DIR
+ExecStart=$NODE_BIN server/index.js
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+    sudo systemctl daemon-reload
+    sudo systemctl enable --now $SERVICE
+    IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+    echo "✅ Servidor activado. Panel: http://${IP:-<ip-de-la-raspberry>}:3000"
+    echo "   Ver su registro: journalctl -u $SERVICE -f"
+fi
 
 # Botón de apagado (opcional)
 CONFIG_TXT=/boot/firmware/config.txt

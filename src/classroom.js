@@ -37,7 +37,9 @@ const DEFAULT_OPTIONS = {
     minWords: 3,
     maxWords: 25,
     allowSubstitutes: true,
-    checkIntervalSeconds: 30
+    checkIntervalSeconds: 30,
+    // Cada cuánto se vuelve a pedir el horario al servidor (cambios del panel).
+    scheduleRefreshSeconds: 60
 };
 
 function dateKey(date) {
@@ -68,6 +70,8 @@ class Classroom extends EventEmitter {
         this.isClockSynchronized = isClockSynchronized;
 
         this.schedule = new Schedule();
+        this.scheduleJson = null;
+        this.scheduleLoadedAt = null;
         this.session = null;
         this.activity = null;
         this.dayClosedOn = null;
@@ -84,16 +88,37 @@ class Classroom extends EventEmitter {
 
     /** Descarga el horario del servidor; si no hay conexión usa la copia local. */
     async loadSchedule() {
+        this.scheduleLoadedAt = this.clock.now().getTime();
         try {
             const data = await this.api.getSchedule();
             if (this.scheduleCacheFile) writeJsonAtomic(this.scheduleCacheFile, data);
-            this.schedule = new Schedule(data);
+            this.useSchedule(data);
             return 'servidor';
         } catch (error) {
             const cached = readJson(this.scheduleCacheFile, null);
             if (!cached) return 'sin horario';
-            this.schedule = new Schedule(cached);
+            this.useSchedule(cached);
             return 'copia local';
+        }
+    }
+
+    /** Aplica un horario; devuelve true si ha cambiado respecto al anterior. */
+    useSchedule(data) {
+        const json = JSON.stringify(data);
+        const changed = this.scheduleJson !== null && json !== this.scheduleJson;
+        this.scheduleJson = json;
+        this.schedule = new Schedule(data);
+        return changed;
+    }
+
+    /** Vuelve a pedir el horario si ha pasado el intervalo; avisa si ha cambiado. */
+    async refreshSchedule() {
+        const now = this.clock.now().getTime();
+        if (this.scheduleLoadedAt !== null && now - this.scheduleLoadedAt < this.options.scheduleRefreshSeconds * 1000) return;
+        const before = this.scheduleJson;
+        const source = await this.loadSchedule();
+        if (source === 'servidor' && before !== null && before !== this.scheduleJson) {
+            this.report({ kind: 'schedule-updated', slots: this.schedule.slots.length });
         }
     }
 
@@ -110,6 +135,7 @@ class Classroom extends EventEmitter {
     }
 
     async tick() {
+        await this.refreshSchedule();
         const now = this.clock.now();
         if (this.schedule.slotAt(now)) this.sawClassTime = true;
 
@@ -148,7 +174,14 @@ class Classroom extends EventEmitter {
     // --- Tarjetas ---------------------------------------------------------------
 
     async handleCard(uid) {
-        const card = await this.api.getCard(uid);
+        let card;
+        try {
+            card = await this.api.getCard(uid);
+        } catch (error) {
+            // Tarjeta no registrada o sin conexión: se avisa (también en el panel).
+            if (error.status === 404) return this.report({ kind: 'unknown-card', uid });
+            return this.report({ kind: 'card-error', uid, message: error.message });
+        }
         if (card.role === 'teacher') return this.handleTeacherCard(card.teacher);
         return this.handleStudentCard(card.student);
     }
@@ -174,7 +207,11 @@ class Classroom extends EventEmitter {
         }
 
         if (!this.activity) return this.startActivity();
-        if (this.activity.phase === 'listening') return this.discard(this.activity, 'cancelada por el profesor');
+        // Mientras escucha, si no ha salido nadie la tarjeta cancela la misión;
+        // si ya ha salido algún alumno, la cierra como ejercicio (ver closeActivity).
+        if (this.activity.phase === 'listening' && this.activity.students.length === 0) {
+            return this.discard(this.activity, 'cancelada por el profesor');
+        }
         return this.closeActivity();
     }
 
@@ -187,6 +224,7 @@ class Classroom extends EventEmitter {
         }
 
         // Si vuelve a pasar la tarjeta, pasa a ser el último (quien la completa).
+        // Los puntos no se dan aquí: solo al confirmar la misión.
         activity.students = activity.students.filter((s) => s.id !== student.id);
         activity.students.push(student);
         return this.report({
@@ -219,7 +257,8 @@ class Classroom extends EventEmitter {
         this.activity = activity;
         activity.timer = this.clock.setTimeout(() => {
             if (this.activity === activity && activity.phase === 'listening') {
-                this.discard(activity, `sin datos tras ${this.options.listenMinutes} minutos`);
+                this.abandon(activity, `sin datos tras ${this.options.listenMinutes} minutos`)
+                    .catch((error) => this.report({ kind: 'error', message: error.message }));
             }
         }, this.options.listenMinutes * 60 * 1000);
         activity.listening = this.listener.start((text) => {
@@ -260,9 +299,24 @@ class Classroom extends EventEmitter {
         return this.report({ kind: 'mission-ready', title: activity.title, modality: activity.modality, subject: activity.subject });
     }
 
-    /** Tarjeta del profesor con la misión definida: se confirma y se reparten los puntos. */
+    /**
+     * Tarjeta del profesor que cierra la misión: se confirma y se reparten los
+     * puntos. Si todavía se estaba escuchando (no se detectó el tipo de
+     * actividad) pero ya ha salido algún alumno, se cierra como un ejercicio
+     * individual: así el alumno no pierde sus puntos porque el reconocimiento
+     * de voz no entendiera la frase.
+     */
     async closeActivity() {
         const activity = this.activity;
+        let defaulted = false;
+        if (activity.phase === 'listening') {
+            this.stopListening(activity);
+            activity.phase = 'waiting';
+            activity.type = 'ejercicio';
+            activity.title = missionTitle('ejercicio', activity.subject);
+            activity.modality = 'individual';
+            defaulted = true;
+        }
         if (activity.modality !== 'grupal' && activity.students.length === 0) {
             return this.discard(activity, 'no ha salido ningún alumno');
         }
@@ -270,22 +324,48 @@ class Classroom extends EventEmitter {
         const isGroup = activity.modality === 'grupal';
         const last = activity.students[activity.students.length - 1];
         const payload = {
+            ...this.missionPayload(activity),
+            completedBy: isGroup ? undefined : last.id,
+            attempts: isGroup ? [] : activity.students.slice(0, -1).map((s) => s.id)
+        };
+        this.activity = null;
+        const result = await this.api.confirmMission(payload);
+        return this.report({ kind: 'confirmed', mission: payload, defaulted, results: result.results || [], queued: Boolean(result.queued) });
+    }
+
+    missionPayload(activity) {
+        return {
             id: activity.id,
-            title: activity.title,
+            title: activity.title || missionTitle('ejercicio', activity.subject),
             subject: activity.subject,
-            type: activity.type,
-            modality: activity.modality,
+            type: activity.type || 'ejercicio',
+            modality: activity.modality || 'individual',
             transcript: activity.transcript,
             classroom: this.schedule.classroom,
             teacherId: this.session.teacher.id,
             substitute: this.session.substitute,
-            startedAt: activity.startedAt,
-            completedBy: isGroup ? undefined : last.id,
-            attempts: isGroup ? [] : activity.students.slice(0, -1).map((s) => s.id)
+            startedAt: activity.startedAt
+        };
+    }
+
+    /**
+     * La misión termina sin que el profesor la confirme (tiempo de escucha
+     * agotado, fin de la franja, otro profesor...). Si ya había salido algún
+     * alumno, se registra como «sin confirmar» y cada uno recibe los puntos de
+     * intento; si no, simplemente se descarta.
+     */
+    async abandon(activity, reason) {
+        if (activity.students.length === 0 || !this.session) return this.discard(activity, reason);
+        this.stopListening(activity);
+        if (this.activity === activity) this.activity = null;
+        const payload = {
+            ...this.missionPayload(activity),
+            confirmed: false,
+            reason,
+            attempts: activity.students.map((s) => s.id)
         };
         const result = await this.api.confirmMission(payload);
-        this.activity = null;
-        return this.report({ kind: 'confirmed', mission: payload, results: result.results || [], queued: Boolean(result.queued) });
+        return this.report({ kind: 'unconfirmed', mission: payload, reason, results: result.results || [], queued: Boolean(result.queued) });
     }
 
     discard(activity, reason) {
@@ -307,7 +387,7 @@ class Classroom extends EventEmitter {
     }
 
     async endSession(reason) {
-        if (this.activity) this.discard(this.activity, `misión sin cerrar (${reason})`);
+        if (this.activity) await this.abandon(this.activity, `misión sin cerrar (${reason})`);
         const { teacher } = this.session;
         this.session = null;
         return this.report({ kind: 'session-end', teacher, reason });

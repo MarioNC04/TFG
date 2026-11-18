@@ -16,7 +16,8 @@ const DEFAULTS = {
         maxWords: 25,
         allowSubstitutes: true,
         requireTimeSync: true,
-        checkIntervalSeconds: 30
+        checkIntervalSeconds: 30,
+        scheduleRefreshSeconds: 60
     },
     speech: {
         provider: 'vosk',

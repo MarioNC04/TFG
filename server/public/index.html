@@ -5,23 +5,122 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Zorro del aula</title>
 <style>
-  :root { --bg: #fdf6ec; --card: #fff; --ink: #3b2a1a; --muted: #8a7462; --accent: #e8742a; --ok: #2f8f5b; }
+  :root { --bg: #fdf6ec; --card: #fff; --ink: #3b2a1a; --muted: #8a7462; --line: #f0e6da; --accent: #e8742a; --accent-soft: #fdebdc; --ok: #2f8f5b; --ok-soft: #e3f3ea; --bad: #b3261e; }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--ink); }
-  main { max-width: 960px; margin: 0 auto; padding: 24px 16px; display: grid; gap: 16px; }
+  main { max-width: 960px; margin: 0 auto; padding: 24px 16px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
   .avatar { display: flex; gap: 16px; align-items: center; background: var(--card); border-radius: 16px; padding: 20px; }
   .fox { font-size: 72px; line-height: 1; }
   .bubble { font-size: 1.4rem; font-weight: 600; }
-  .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
-  section { background: var(--card); border-radius: 16px; padding: 16px 20px; }
+  .avatar > div:last-child { min-width: 0; overflow-wrap: anywhere; }
+  .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); }
+  section, details.card { background: var(--card); border-radius: 16px; padding: 16px 20px; }
   h2 { margin: 0 0 8px; font-size: 1rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
   ul { list-style: none; margin: 0; padding: 0; }
-  li { padding: 8px 0; border-bottom: 1px solid #f0e6da; }
+  li { padding: 8px 0; border-bottom: 1px solid var(--line); }
   li:last-child { border-bottom: 0; }
   .tag { font-size: .8rem; color: var(--accent); }
   .points { float: right; font-weight: 700; color: var(--ok); }
   .empty { color: var(--muted); }
-  .error { color: #b3261e; }
+  .error { color: var(--bad); }
+
+  /* Ahora en el aula */
+  .live-head { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; justify-content: space-between; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; font-size: .85rem; font-weight: 600; padding: 3px 10px; border-radius: 999px; background: var(--line); color: var(--muted); }
+  .pill::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+  .pill.on { background: var(--ok-soft); color: var(--ok); }
+  .pill.off { background: #fbe4e2; color: var(--bad); }
+  .session { font-size: 1.05rem; margin: 4px 0 0; }
+  .session b { font-weight: 700; }
+  .mission { margin-top: 14px; padding: 16px; border-radius: 14px; background: var(--accent-soft); display: grid; gap: 10px; }
+  .mission-top { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
+  .mission-title { font-size: 1.4rem; font-weight: 700; }
+  .timer { font-variant-numeric: tabular-nums; font-size: 2rem; font-weight: 700; color: var(--accent); }
+  .timer small { display: block; font-size: .75rem; font-weight: 600; color: var(--muted); text-align: right; }
+  .bar { height: 8px; border-radius: 999px; background: #f6d3b8; overflow: hidden; }
+  .bar span { display: block; height: 100%; background: var(--accent); transition: width .5s linear; }
+  .hint { color: var(--muted); font-size: .9rem; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; background: #fff; border: 1px solid #f1d6bf; font-weight: 600; }
+  .chip.fresh { animation: pop .4s ease-out; }
+  .chip .plus { color: var(--ok); font-size: .85rem; }
+  .pending { color: var(--accent); font-weight: 600; font-size: .9rem; margin-left: 4px; }
+  .legend { color: var(--muted); font-size: .8rem; margin: 4px 0 0; }
+  .chip.last { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent) inset; }
+  .feed li { display: flex; gap: 10px; white-space: pre-line; font-size: .92rem; }
+  .feed time { color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
+  .feed li.warn { color: var(--bad); background: #fdf1f0; border-radius: 8px; padding-left: 8px; padding-right: 8px; border-bottom-color: transparent; }
+  .feed li.warn time { color: inherit; }
+  @keyframes pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .bump { animation: bump 1.6s ease-out; }
+  @keyframes bump { 0% { background: var(--ok-soft); } 100% { background: transparent; } }
+  .gain { color: var(--ok); font-size: .8rem; font-weight: 700; margin-left: 6px; }
+  @media (prefers-reduced-motion: reduce) { .chip, .bump { animation: none; } .bar span { transition: none; } }
+
+  /* Reinicio */
+  .reset-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: flex-end; margin-top: -4px; }
+  .reset-bar .status { margin: 0; min-height: 0; }
+  button.danger { color: var(--bad); border-color: #efc3bf; }
+  button.danger:hover { background: #fdf1f0; }
+
+  /* Logros */
+  .badges { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr)); margin: 12px 0; }
+  .badge { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; padding: 14px; border-radius: 14px; background: #fbf7f2; border: 1px solid var(--line); }
+  .badge.earned { background: #fff7ee; border-color: #f1d6bf; }
+  .badge .icon { grid-row: span 3; font-size: 2rem; line-height: 1; filter: grayscale(1); opacity: .55; }
+  .badge.earned .icon { filter: none; opacity: 1; }
+  .badge b { font-size: 1rem; }
+  .badge p { margin: 0; font-size: .88rem; color: var(--ink); }
+  .badge small { color: var(--muted); font-size: .8rem; }
+  .badge.earned small { color: var(--ok); font-weight: 600; }
+
+  /* Desplegable del horario */
+  details.card > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px; }
+  details.card > summary::-webkit-details-marker { display: none; }
+  details.card > summary::before { content: '▸'; color: var(--muted); transition: transform .15s; }
+  details.card[open] > summary::before { transform: rotate(90deg); }
+  details.card > summary h2 { margin: 0; }
+
+  /* Cuadro del horario */
+  .schedule-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin: 12px 0; }
+  .schedule-bar .hint { margin: 0; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+  button { font: inherit; border-radius: 10px; border: 1px solid #e3d5c4; background: #fff; color: var(--ink); padding: 6px 14px; cursor: pointer; }
+  button:hover { background: #fbf1e5; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  button.primary:hover { background: #d4641d; }
+  button:disabled { opacity: .5; cursor: default; }
+  .table-wrap { overflow-x: auto; }
+  .timetable { width: 100%; border-collapse: separate; border-spacing: 6px; min-width: 680px; table-layout: fixed; }
+  .timetable th { font-size: .85rem; font-weight: 600; padding: 8px 4px; border-radius: 8px; text-align: center; color: var(--ink); }
+  .timetable th.day-lunes { background: #f9c9cc; }
+  .timetable th.day-martes { background: #fde0b6; }
+  .timetable th.day-miercoles { background: #c9ecd8; }
+  .timetable th.day-jueves { background: #cde6f4; }
+  .timetable th.day-viernes { background: #ead6f6; }
+  .timetable th.day-sabado, .timetable th.day-domingo { background: #e8e2da; }
+  .timetable th.today { box-shadow: 0 0 0 2px var(--ink) inset; }
+  .timetable th.time-head { background: none; color: var(--muted); width: 128px; }
+  .timetable td { background: #f1ece6; border-radius: 8px; height: 56px; padding: 6px 8px; vertical-align: middle; text-align: center; font-size: .85rem; line-height: 1.25; }
+  .timetable td.lesson { background: var(--cell, #fdebdc); }
+  .timetable td.lesson b { display: block; font-size: .9rem; }
+  .timetable td.lesson span { color: var(--muted); }
+  .timetable td.now { box-shadow: 0 0 0 2px var(--accent) inset; }
+  .timetable td.time { background: none; text-align: left; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
+  .timetable.editing td { height: auto; padding: 6px; }
+  .timetable.editing td.lesson, .timetable.editing td.free { background: #fbf7f2; box-shadow: 0 0 0 1px #eadccb inset; }
+  .timetable select { width: 100%; font: inherit; font-size: .8rem; padding: 3px 4px; border: 1px solid #e3d5c4; border-radius: 6px; background: #fff; color: var(--ink); }
+  .timetable select + select { margin-top: 4px; }
+  .timetable input[type=time] { font: inherit; font-size: .8rem; padding: 2px 4px; border: 1px solid #e3d5c4; border-radius: 6px; width: 100%; }
+  .time-edit { display: grid; grid-template-columns: 1fr auto; gap: 4px; align-items: center; }
+  .time-edit .remove { grid-row: span 2; border: 0; background: none; color: var(--muted); font-size: 1rem; padding: 2px 6px; }
+  .timetable td.invalid { box-shadow: 0 0 0 2px var(--bad) inset; }
+  .add-row { margin-top: 4px; }
+  .status { min-height: 1.4em; margin-top: 8px; font-size: .9rem; }
+  .status.ok { color: var(--ok); }
+  .status.error { color: var(--bad); }
+  .dirty { font-size: .8rem; color: var(--accent); text-transform: none; letter-spacing: 0; }
 </style>
 </head>
 <body>
@@ -30,16 +129,196 @@
     <div class="fox" aria-hidden="true">🦊</div>
     <div><div class="tag" id="name">Zorro</div><div class="bubble" id="message">Cargando…</div></div>
   </div>
+
+  <section id="live" aria-live="polite">
+    <div class="live-head">
+      <h2>Ahora en el aula</h2>
+      <span class="pill" id="live-pill">Conectando…</span>
+    </div>
+    <div id="live-body"></div>
+  </section>
+
   <div class="grid">
     <section><h2>Últimas misiones</h2><ul id="missions"></ul></section>
-    <section><h2>Ranking</h2><ul id="ranking"></ul></section>
+    <section><h2>Ranking</h2><ul id="ranking"></ul><p class="legend" id="ranking-legend" hidden>Entre paréntesis, los puntos que recibirán si se confirma la misión abierta.</p></section>
     <section><h2>Últimos logros</h2><ul id="achievements"></ul></section>
   </div>
+  <div class="reset-bar">
+    <span class="status" id="reset-status" role="status"></span>
+    <button type="button" class="danger" id="reset-progress">Reiniciar ranking, misiones y logros</button>
+  </div>
+
+  <details class="card" id="badges" open>
+    <summary><h2>Logros</h2></summary>
+    <p class="hint">Cómo se consigue cada logro y quién lo tiene ya.</p>
+    <div class="badges" id="badge-list"></div>
+    <p class="hint" id="points-rules"></p>
+  </details>
+
+  <details class="card" id="schedule">
+    <summary><h2>Horario del aula <span class="dirty" id="dirty" hidden>· editando</span></h2></summary>
+    <div class="schedule-bar">
+      <p class="hint" id="schedule-hint">Asignatura y profesor de cada franja. El dispositivo del aula usa este horario.</p>
+      <div class="actions" id="view-actions">
+        <button type="button" id="edit">Editar</button>
+      </div>
+      <div class="actions" id="edit-actions" hidden>
+        <button type="button" id="cancel">Cancelar</button>
+        <button type="button" id="save" class="primary">Guardar</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table class="timetable" id="timetable"></table>
+    </div>
+    <button type="button" class="add-row" id="add-row" hidden>+ Añadir franja horaria</button>
+    <div class="status" id="status" role="status"></div>
+  </details>
+
+  <section>
+    <h2>Lo último en el aula</h2>
+    <ul class="feed" id="feed"></ul>
+  </section>
+
 </main>
 <script>
   const el = (id) => document.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const list = (items, render, empty) => items.length ? items.map((i) => `<li>${render(i)}</li>`).join('') : `<li class="empty">${empty}</li>`;
+  const mmss = (ms) => { const s = Math.max(0, Math.round(ms / 1000)); return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; };
+
+  // --- Estado en directo ----------------------------------------------------
+  // El servidor avisa de cada cambio (Server-Sent Events) y el panel se
+  // actualiza al momento. Los temporizadores se calculan en el navegador a
+  // partir de lo que llevaba la misión cuando el dispositivo envió su estado.
+  let live = null, liveAt = 0, lastPoints = null, lastLiveHtml = '', lastRanking = null;
+  const seenChips = new Set();
+
+  function renderLive() {
+    const pill = el('live-pill');
+    if (!live || live.stale) {
+      pill.className = 'pill off';
+      pill.textContent = live ? 'Dispositivo sin conexión' : 'Dispositivo sin conectar';
+      el('live-body').innerHTML = `<p class="hint">${live
+        ? 'El dispositivo del aula no envía su estado desde hace un rato. Comprueba que está encendido y con conexión.'
+        : 'Todavía no se ha conectado el dispositivo del aula. Arráncalo con <code>npm start</code> o lanza <code>npm run demo</code>.'}</p>`;
+      return;
+    }
+    const since = live.ageMs + (Date.now() - liveAt);
+    const { session, activity, slot } = live;
+    pill.className = session ? 'pill on' : 'pill';
+    pill.textContent = session ? 'Clase en marcha' : 'Sin clase en marcha';
+
+    let html = '';
+    if (session) {
+      html += `<p class="session"><b>${esc(session.teacher.name)}</b> · ${esc(session.subjectLabel)} · ${esc(session.slot.start)}–${esc(session.slot.end)}${session.substitute ? ' · <span class="tag">sustituto</span>' : ''}</p>`;
+    } else if (slot) {
+      const teacher = teachers.find((t) => t.id === slot.teacherId);
+      html += `<p class="session">Ahora toca <b>${esc(slot.subjectLabel)}</b> (${esc(slot.start)}–${esc(slot.end)})${teacher ? ` con ${esc(teacher.name)}` : ''}. Esperando a que pase su tarjeta.</p>`;
+    } else {
+      html += '<p class="session hint">No hay ninguna clase en el horario en este momento.</p>';
+    }
+
+    if (activity) {
+      const elapsed = activity.elapsedMs + since;
+      const students = activity.students || [];
+      const pending = pendingPoints();
+      const chips = students.map((s, i) => {
+        const last = activity.modality !== 'grupal' && i === students.length - 1;
+        // Solo se anima la primera vez que aparece cada alumno.
+        const key = `${activity.id}:${s.id}`;
+        const fresh = !seenChips.has(key);
+        seenChips.add(key);
+        return `<span class="chip${last ? ' last' : ''}${fresh ? ' fresh' : ''}">${last ? '⭐ ' : ''}${esc(s.name)} <span class="plus">+${pending[s.id] || 0}</span></span>`;
+      }).join('');
+
+      if (activity.phase === 'listening') {
+        const remaining = activity.listenRemainingMs - since;
+        const pct = Math.max(0, Math.min(100, (remaining / activity.listenTotalMs) * 100));
+        html += `<div class="mission">
+          <div class="mission-top">
+            <div><div class="tag">Misión abierta · ${esc(activity.subjectLabel)}</div><div class="mission-title">🎤 Escuchando al profesor…</div></div>
+            <div class="timer"><span data-timer="remaining">${mmss(remaining)}</span><small>para decir la actividad</small></div>
+          </div>
+          <div class="bar" aria-hidden="true"><span data-bar style="width:${pct}%"></span></div>
+          ${students.length
+            ? `<div class="chips">${chips}</div><div class="hint">Si el profesor pasa ahora su tarjeta, se cierra como ejercicio y <b>${esc(students[students.length - 1].name)}</b> la completa.</div>`
+            : '<div class="hint">Cuando el profesor diga la actividad, quien salga pasa su tarjeta.</div>'}
+        </div>`;
+      } else {
+        const group = activity.modality === 'grupal';
+        const hint = group
+          ? 'Misión de toda la clase: al cerrarla, todos reciben 5 puntos.'
+          : students.length
+            ? `Si el profesor la cierra ahora, <b>${esc(students[students.length - 1].name)}</b> la completa (+10)${students.length > 1 ? ' y los demás reciben +2 por intentarlo' : ''}. Los puntos se dan al confirmar.`
+            : 'Quien salga pasa su tarjeta. El último en salir la completa cuando el profesor la cierra.';
+        html += `<div class="mission">
+          <div class="mission-top">
+            <div><div class="tag">${group ? 'Toda la clase' : 'Individual'} · ${esc(activity.subjectLabel)}</div><div class="mission-title">🎯 ${esc(activity.title)}</div></div>
+            <div class="timer"><span data-timer="elapsed">${mmss(elapsed)}</span><small>abierta</small></div>
+          </div>
+          ${students.length ? `<div class="chips">${chips}</div>` : ''}
+          <div class="hint">${hint}</div>
+        </div>`;
+      }
+    } else if (session) {
+      html += '<p class="hint">El profesor puede pasar su tarjeta para abrir una nueva misión.</p>';
+    }
+    if (html !== lastLiveHtml) {
+      el('live-body').innerHTML = html;
+      lastLiveHtml = html;
+    }
+  }
+
+  /** Cada segundo solo avanzan los temporizadores (sin redibujar la misión). */
+  function updateTimers() {
+    if (!live || !live.activity) return;
+    if (live.stale === false && live.ageMs + (Date.now() - liveAt) > 90000) return renderLive();
+    const since = live.ageMs + (Date.now() - liveAt);
+    const a = live.activity;
+    const remaining = el('live-body').querySelector('[data-timer="remaining"]');
+    if (remaining) {
+      const ms = a.listenRemainingMs - since;
+      remaining.textContent = mmss(ms);
+      const bar = el('live-body').querySelector('[data-bar]');
+      if (bar) bar.style.width = `${Math.max(0, Math.min(100, (ms / a.listenTotalMs) * 100))}%`;
+    }
+    const elapsed = el('live-body').querySelector('[data-timer="elapsed"]');
+    if (elapsed) elapsed.textContent = mmss(a.elapsedMs + since);
+  }
+
+  /**
+   * Puntos que recibiría cada alumno si el profesor confirmase ahora la misión
+   * abierta: el último en salir la completa (+10), los anteriores lo han
+   * intentado (+2); en una misión de toda la clase, todos +5.
+   */
+  function pendingPoints() {
+    const pending = {};
+    const a = live && !live.stale && live.activity;
+    if (!a) return pending;
+    if (a.phase === 'waiting' && a.modality === 'grupal') {
+      (lastRanking || []).forEach((r) => { pending[r.id] = 5; });
+      return pending;
+    }
+    (a.students || []).forEach((s, i, all) => { pending[s.id] = i === all.length - 1 ? 10 : 2; });
+    return pending;
+  }
+
+  function renderRanking(ranking) {
+    lastRanking = ranking;
+    const pending = pendingPoints();
+    const before = lastPoints;
+    lastPoints = Object.fromEntries(ranking.map((r) => [r.id, r.points]));
+    el('ranking').innerHTML = list(ranking, (r) => {
+      const gain = before && before[r.id] !== undefined ? r.points - before[r.id] : 0;
+      return `<span data-id="${esc(r.id)}">${esc(r.name)}${gain > 0 ? `<span class="gain">+${gain}</span>` : ''}</span><span class="points">${r.points}${pending[r.id] ? `<span class="pending" title="Si se confirma la misión">(+${pending[r.id]})</span>` : ''}</span>`;
+    }, 'Sin alumnos');
+    el('ranking-legend').hidden = !Object.keys(pending).length;
+    if (before) {
+      el('ranking').querySelectorAll('li').forEach((li) => {
+        if (li.querySelector('.gain')) li.classList.add('bump');
+      });
+    }
+  }
 
   async function refresh() {
     try {
@@ -48,18 +327,325 @@
       el('message').textContent = avatar.message;
       el('message').classList.remove('error');
       el('missions').innerHTML = list(avatar.missions,
-        (m) => `${esc(m.title)}<br><span class="tag">${m.modality === 'grupal' ? 'Toda la clase' : 'Individual'} · ${m.participants.length} completada/s${(m.attempts || []).length ? ` · ${m.attempts.length} intento/s` : ''}</span>`,
+        (m) => `${esc(m.title)}<br><span class="tag">${m.status === 'unconfirmed' ? 'Sin confirmar' : m.modality === 'grupal' ? 'Toda la clase' : 'Individual'} · ${m.status === 'unconfirmed' ? '' : `${m.participants.length} completada/s`}${(m.attempts || []).length ? `${m.status === 'unconfirmed' ? '' : ' · '}${m.attempts.length} intento/s` : ''}</span>`,
         'Todavía no hay misiones');
-      el('ranking').innerHTML = list(avatar.ranking, (r) => `${esc(r.name)}<span class="points">${r.points}</span>`, 'Sin alumnos');
+      live = avatar.live;
+      liveAt = Date.now();
+      renderRanking(avatar.ranking);
+      loadBadges();
       el('achievements').innerHTML = list(avatar.recentAchievements,
         (a) => `🏆 ${esc(a.title)}<br><span class="tag">${esc(a.student)}</span>`, 'Todavía no hay logros');
+      const feed = (live && live.feed) || [];
+      el('feed').innerHTML = feed.length
+        ? feed.map((f) => `<li${f.warn ? ' class="warn"' : ''}><time>${esc(f.at)}</time><span>${esc(f.text)}</span></li>`).join('')
+        : '<li class="empty">Todavía no ha pasado nada</li>';
+      renderLive();
     } catch (error) {
       el('message').textContent = 'No se puede conectar con el servidor';
       el('message').classList.add('error');
     }
   }
+
+  // --- Catálogo de logros ---------------------------------------------------
+  async function loadBadges() {
+    try {
+      const { achievements, points } = await (await fetch('/api/achievements')).json();
+      el('badge-list').innerHTML = achievements.map((a) => {
+        const names = a.id === 'experto'
+          ? a.holders.map((h) => `${h.name} (${h.title.replace('Experto en ', '')})`)
+          : a.holders.map((h) => h.name);
+        return `<div class="badge${names.length ? ' earned' : ''}">
+          <span class="icon" aria-hidden="true">${a.icon}</span>
+          <b>${esc(a.title)}</b>
+          <p>${esc(a.howTo)}</p>
+          <small>${names.length ? `Lo tiene${names.length > 1 ? 'n' : ''}: ${esc(names.join(', '))}` : 'Nadie lo tiene todavía'}</small>
+        </div>`;
+      }).join('');
+      el('points-rules').innerHTML = `<b>Puntos:</b> completar una misión individual, ${points.individual}; salir a intentarlo, ${points.attempt}; misión de toda la clase, ${points.group} para cada alumno. Se dan cuando el profesor confirma la misión.`;
+    } catch (error) {
+      // servidor antiguo sin /api/achievements: la sección queda vacía
+    }
+  }
+
+  // --- Reinicio de puntuaciones -----------------------------------------------
+  el('reset-progress').addEventListener('click', async () => {
+    const ok = confirm([
+      'Se pondrán a 0 los puntos de todos los alumnos y se borrarán sus logros y todas las misiones registradas.',
+      'Los alumnos, las tarjetas y el horario se conservan.',
+      'No se puede deshacer. ¿Reiniciar?'
+    ].join('\n\n'));
+    if (!ok) return;
+    const out = el('reset-status');
+    el('reset-progress').disabled = true;
+    try {
+      const res = await fetch('/api/reset', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
+      lastPoints = null;
+      out.textContent = `Reiniciado: ${data.missions} misión/es borradas y ${data.students} alumnos a 0 puntos.`;
+      out.className = 'status ok';
+      refresh();
+    } catch (error) {
+      out.textContent = `No se ha podido reiniciar: ${error.message}`;
+      out.className = 'status error';
+    } finally {
+      el('reset-progress').disabled = false;
+    }
+  });
+
   refresh();
-  setInterval(refresh, 3000);
+  // Aviso inmediato de cada cambio; el refresco periódico es solo de respaldo.
+  if (window.EventSource) new EventSource('/api/events').onmessage = () => refresh();
+  setInterval(refresh, 10000);
+  // Los temporizadores avanzan cada segundo sin pedir nada al servidor.
+  setInterval(updateTimers, 1000);
+
+  // --- Horario del aula -----------------------------------------------------
+  // Tres capas: el desplegable de la sección, el cuadro de solo lectura (con
+  // el botón «Editar») y el modo edición, en el que cada celda se elige con
+  // desplegables (profesor y asignatura) y las horas de cada franja se cambian
+  // en la columna de la derecha. Nada se guarda hasta pulsar «Guardar».
+  const ALL_DAYS = [['lunes', 'Lunes'], ['martes', 'Martes'], ['miercoles', 'Miércoles'], ['jueves', 'Jueves'], ['viernes', 'Viernes'], ['sabado', 'Sábado'], ['domingo', 'Domingo']];
+  const WEEKDAY_IDS = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+  const PALETTE = ['#fde2c8', '#d6eedf', '#d9e8f7', '#f3dcef', '#fff0bf', '#e3def7', '#d3efee', '#f8dcdc'];
+  let teachers = [], subjects = [], classroom = null;
+  let rows = [];        // horario guardado: [{ start, end, cells: { lunes: { teacherId, subject } } }]
+  let draft = null;     // copia que se edita; null = solo lectura
+
+  const subjectLabel = (id) => (subjects.find((s) => s.id === id) || { label: id }).label;
+  const teacherName = (id) => (teachers.find((t) => t.id === id) || { name: id }).name;
+  const subjectColor = (id) => PALETTE[[...String(id)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % PALETTE.length];
+  const clone = (value) => JSON.parse(JSON.stringify(value));
+
+  function status(text, kind = '') {
+    el('status').textContent = text;
+    el('status').className = `status ${kind}`;
+  }
+
+  /** Días que se muestran: de lunes a viernes, y el fin de semana solo si tiene clases. */
+  function visibleDays(source) {
+    const used = new Set(source.flatMap((r) => Object.keys(r.cells)));
+    return ALL_DAYS.filter(([id]) => !['sabado', 'domingo'].includes(id) || used.has(id));
+  }
+
+  /** Del formato del servidor (franjas con días) al cuadro (filas × días). */
+  function fromSchedule(schedule) {
+    const periods = new Map();
+    for (const p of schedule.periods || []) periods.set(`${p.start}-${p.end}`, { start: p.start, end: p.end, cells: {} });
+    for (const s of schedule.slots || []) {
+      const key = `${s.start}-${s.end}`;
+      if (!periods.has(key)) periods.set(key, { start: s.start, end: s.end, cells: {} });
+      for (const day of s.days) periods.get(key).cells[day] = { teacherId: s.teacherId, subject: s.subject };
+    }
+    return [...periods.values()].sort((a, b) => a.start.localeCompare(b.start) || a.end.localeCompare(b.end));
+  }
+
+  /** Del cuadro al formato del servidor: una franja por profesor y asignatura que se repite en varios días. */
+  function toSchedule(source) {
+    const slots = new Map();
+    for (const row of source) {
+      for (const [day, cell] of Object.entries(row.cells)) {
+        if (!cell || !cell.teacherId) continue;
+        const key = `${row.start}|${row.end}|${cell.teacherId}|${cell.subject}`;
+        if (!slots.has(key)) slots.set(key, { days: [], start: row.start, end: row.end, teacherId: cell.teacherId, subject: cell.subject });
+        slots.get(key).days.push(day);
+      }
+    }
+    return { classroom, periods: source.map(({ start, end }) => ({ start, end })), slots: [...slots.values()] };
+  }
+
+  function renderSchedule() {
+    const editing = draft !== null;
+    const source = editing ? draft : rows;
+    const days = visibleDays(source);
+    const now = new Date();
+    const today = WEEKDAY_IDS[now.getDay()];
+    const hhmm = now.toTimeString().slice(0, 5);
+
+    el('view-actions').hidden = editing;
+    el('edit-actions').hidden = !editing;
+    el('add-row').hidden = !editing;
+    el('dirty').hidden = !editing;
+    el('schedule-hint').textContent = editing
+      ? 'Elige el profesor y la asignatura de cada celda, y ajusta las horas a la derecha. Deja «Libre» las horas sin clase.'
+      : 'Asignatura y profesor de cada franja. El dispositivo del aula usa este horario.';
+
+    const table = el('timetable');
+    table.classList.toggle('editing', editing);
+    const head = `<thead><tr>${days.map(([id, label]) => `<th class="day-${id}${id === today && !editing ? ' today' : ''}" scope="col">${label}</th>`).join('')}<th class="time-head" scope="col">Hora</th></tr></thead>`;
+
+    if (!source.length) {
+      table.innerHTML = `${head}<tbody><tr><td colspan="${days.length + 1}" class="empty">${editing ? 'Añade la primera franja horaria.' : 'Todavía no hay horario. Pulsa «Editar» para crearlo.'}</td></tr></tbody>`;
+      return;
+    }
+
+    const body = source.map((row, r) => {
+      const cells = days.map(([day]) => {
+        const cell = row.cells[day];
+        if (editing) return `<td class="${cell ? 'lesson' : 'free'}" data-row="${r}" data-day="${day}">${cellEditor(cell)}</td>`;
+        if (!cell) return '<td></td>';
+        const isNow = day === today && row.start <= hhmm && hhmm < row.end;
+        return `<td class="lesson${isNow ? ' now' : ''}" style="--cell:${subjectColor(cell.subject)}"${isNow ? ' title="Ahora"' : ''}><b>${esc(subjectLabel(cell.subject))}</b><span>${esc(teacherName(cell.teacherId))}</span></td>`;
+      }).join('');
+      const time = editing
+        ? `<td class="time" data-row="${r}"><div class="time-edit">
+             <input type="time" data-field="start" value="${esc(row.start)}" aria-label="Inicio de la franja ${r + 1}">
+             <button type="button" class="remove" data-remove="${r}" title="Quitar esta franja" aria-label="Quitar la franja ${r + 1}">✕</button>
+             <input type="time" data-field="end" value="${esc(row.end)}" aria-label="Fin de la franja ${r + 1}">
+           </div></td>`
+        : `<td class="time">${esc(row.start)} – ${esc(row.end)}</td>`;
+      return `<tr>${cells}${time}</tr>`;
+    }).join('');
+    table.innerHTML = `${head}<tbody>${body}</tbody>`;
+  }
+
+  function cellEditor(cell) {
+    const teacherId = cell ? cell.teacherId : '';
+    const teacher = teachers.find((t) => t.id === teacherId);
+    const own = teacher ? teacher.subjects : [];
+    const ids = [...new Set([...own, ...(cell ? [cell.subject] : []), ...subjects.map((s) => s.id)])];
+    const opt = (id) => `<option value="${esc(id)}"${cell && id === cell.subject ? ' selected' : ''}>${esc(subjectLabel(id))}</option>`;
+    const mine = ids.filter((id) => own.includes(id));
+    const others = ids.filter((id) => !own.includes(id));
+    return `<select data-field="teacherId" aria-label="Profesor">
+        <option value="">Libre</option>
+        ${teachers.map((t) => `<option value="${esc(t.id)}"${t.id === teacherId ? ' selected' : ''}>${esc(t.name)}</option>`).join('')}
+      </select>
+      <select data-field="subject" aria-label="Asignatura"${cell ? '' : ' disabled'}>
+        ${cell ? '' : '<option>—</option>'}
+        ${mine.length ? `<optgroup label="Suyas">${mine.map(opt).join('')}</optgroup>` : ''}
+        ${others.length ? `<optgroup label="Otras">${others.map(opt).join('')}</optgroup>` : ''}
+      </select>`;
+  }
+
+  el('timetable').addEventListener('change', (e) => {
+    if (!draft) return;
+    const td = e.target.closest('td[data-row]');
+    if (!td) return;
+    const row = draft[Number(td.dataset.row)];
+    const field = e.target.dataset.field;
+    if (field === 'start' || field === 'end') {
+      row[field] = e.target.value;
+    } else if (field === 'teacherId') {
+      const day = td.dataset.day;
+      if (!e.target.value) {
+        delete row.cells[day];
+      } else {
+        // Al elegir profesor se propone su primera asignatura.
+        const teacher = teachers.find((t) => t.id === e.target.value);
+        const current = row.cells[day];
+        const subject = current && teacher.subjects.includes(current.subject) ? current.subject : (teacher.subjects[0] || (subjects[0] || {}).id || '');
+        row.cells[day] = { teacherId: teacher.id, subject };
+      }
+    } else if (field === 'subject') {
+      row.cells[td.dataset.day].subject = e.target.value;
+    }
+    status('');
+    renderSchedule();
+  });
+
+  el('timetable').addEventListener('click', (e) => {
+    const button = e.target.closest('[data-remove]');
+    if (!button || !draft) return;
+    const r = Number(button.dataset.remove);
+    const lessons = Object.keys(draft[r].cells).length;
+    if (lessons && !confirm(`La franja ${draft[r].start} – ${draft[r].end} tiene ${lessons} clase/s. ¿Quitarla?`)) return;
+    draft.splice(r, 1);
+    renderSchedule();
+  });
+
+  el('add-row').addEventListener('click', () => {
+    const last = draft[draft.length - 1];
+    const start = last ? last.end : '09:00';
+    draft.push({ start, end: addHour(start), cells: {} });
+    renderSchedule();
+  });
+
+  function addHour(hhmm) {
+    const [h, m] = hhmm.split(':').map(Number);
+    return `${String(Math.min(h + 1, 23)).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  }
+
+  el('edit').addEventListener('click', () => {
+    draft = clone(rows);
+    status('');
+    renderSchedule();
+  });
+
+  el('cancel').addEventListener('click', () => {
+    draft = null;
+    status('Cambios descartados');
+    renderSchedule();
+  });
+
+  /** Comprobación previa en el navegador (el servidor vuelve a validar). */
+  function validate() {
+    const mark = (r) => el('timetable').querySelectorAll(`td.time[data-row="${r}"]`).forEach((td) => td.classList.add('invalid'));
+    for (const [r, row] of draft.entries()) {
+      if (!row.start || !row.end) { mark(r); return `Franja ${r + 1}: falta la hora`; }
+      if (row.start >= row.end) { mark(r); return `Franja ${row.start} – ${row.end}: la hora de inicio debe ser anterior a la de fin`; }
+    }
+    const sorted = draft.map((row, r) => ({ ...row, r })).sort((a, b) => a.start.localeCompare(b.start));
+    for (let i = 1; i < sorted.length; i++) {
+      const [a, b] = [sorted[i - 1], sorted[i]];
+      if (b.start < a.end) {
+        mark(a.r); mark(b.r);
+        return `Las franjas ${a.start} – ${a.end} y ${b.start} – ${b.end} se solapan`;
+      }
+    }
+    return null;
+  }
+
+  el('save').addEventListener('click', async () => {
+    const problem = validate();
+    if (problem) return status(problem, 'error');
+    el('save').disabled = true;
+    status('Guardando…');
+    try {
+      const res = await fetch('/api/schedule', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(toSchedule(draft))
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
+      rows = fromSchedule(data);
+      classroom = data.classroom || classroom;
+      draft = null;
+      renderSchedule();
+      status(`Horario guardado a las ${new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}. El dispositivo del aula lo recogerá en menos de un minuto.`, 'ok');
+    } catch (error) {
+      status(`No se ha podido guardar: ${error.message}`, 'error');
+    } finally {
+      el('save').disabled = false;
+    }
+  });
+
+  async function loadSchedule() {
+    try {
+      const get = async (u) => { const r = await fetch(u); if (!r.ok) throw new Error(`${u}: ${r.status}`); return r.json(); };
+      const [t, sch] = await Promise.all([get('/api/teachers'), get('/api/schedule')]);
+      // La lista de asignaturas es opcional (servidores antiguos no la tienen).
+      subjects = await get('/api/subjects').catch(() => []);
+      teachers = t;
+      classroom = sch.classroom || null;
+      rows = fromSchedule(sch);
+      if (!draft) renderSchedule();
+      renderLive();
+    } catch (error) {
+      status('No se ha podido cargar el horario', 'error');
+    }
+  }
+
+  // Al abrir el desplegable se vuelve a pedir el horario (por si ha cambiado),
+  // salvo que se esté editando.
+  el('schedule').addEventListener('toggle', () => { if (el('schedule').open && !draft) loadSchedule(); });
+  // La celda de «ahora» se mueve sola con el paso del tiempo.
+  setInterval(() => { if (!draft && el('schedule').open) renderSchedule(); }, 60000);
+  window.addEventListener('beforeunload', (e) => {
+    if (draft && JSON.stringify(draft) !== JSON.stringify(rows)) e.preventDefault();
+  });
+  loadSchedule();
 </script>
 </body>
 </html>

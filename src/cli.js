@@ -111,8 +111,9 @@ class Cli {
             case 'sincronizar': return this.sync();
             case 'microfono': return this.testMicrophone(Number(args[0]) || 20);
             default:
-                // Un lector NFC de tipo teclado escribe solo el UID.
-                if (args.length === 0 && this.nfc.mode === 'keyboard') return this.onCard(command);
+                // Un lector NFC de tipo teclado escribe solo el UID; con un lector
+                // PC/SC también se puede escribir a mano para hacer pruebas.
+                if (args.length === 0) return this.onCard(command);
                 // Sin micrófono, las frases del profesor se escriben a mano.
                 if (this.listener.feed && this.listener.active) return this.listener.feed(line);
                 if (this.listener.feed) return console.log('❓ Comando no reconocido. Si es lo que dice el profesor, primero tiene que pasar su tarjeta.');

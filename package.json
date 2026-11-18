@@ -27,6 +27,9 @@
     "dotenv": "^16.0.3",
     "say": "^0.16.0"
   },
+  "optionalDependencies": {
+    "nfc-pcsc": "^0.8.1"
+  },
   "devDependencies": {
     "nodemon": "^3.0.1"
   },

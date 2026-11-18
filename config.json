@@ -11,7 +11,8 @@
     "maxWords": 25,
     "allowSubstitutes": true,
     "requireTimeSync": true,
-    "checkIntervalSeconds": 30
+    "checkIntervalSeconds": 30,
+    "scheduleRefreshSeconds": 60
   },
 
   "speech": {
@@ -37,7 +38,8 @@
   },
 
   "nfc": {
-    "mode": "keyboard"
+    "_comment": "pcsc: lectores PC/SC (el del proyecto). Si falta el paquete nfc-pcsc (por ejemplo en Windows) se usa el modo teclado: el UID se escribe en la consola.",
+    "mode": "pcsc"
   },
 
   "api": {

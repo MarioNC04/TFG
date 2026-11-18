@@ -1,0 +1,3 @@
+# Los scripts se ejecutan en la Raspberry Pi: siempre con saltos de línea de Linux.
+*.sh text eol=lf
+*.py text eol=lf

@@ -80,6 +80,9 @@ test('flujo individual: el profesor empieza, sale un alumno que falla, otro la c
     await classroom.handleCard('ALU-001');
     const second = await classroom.handleCard('ALU-002');
     assert.deepEqual(second.attempts.map((s) => s.name), ['Lucía']);
+    // Hasta que el profesor confirma, nadie recibe puntos.
+    const points = async () => Object.fromEntries((await api.listStudents()).map((s) => [s.name, s.points]));
+    assert.deepEqual(await points(), { 'Lucía': 0, Hugo: 0, Martina: 0, Pablo: 0 });
 
     const closed = await classroom.handleCard('PROF-ANA');
     assert.equal(closed.kind, 'confirmed');
@@ -87,6 +90,7 @@ test('flujo individual: el profesor empieza, sale un alumno que falla, otro la c
     assert.equal(byName.Hugo.pointsAwarded, 10);
     assert.equal(byName.Hugo.newAchievements[0].title, 'Voluntario Valiente');
     assert.equal(byName['Lucía'].pointsAwarded, 2);
+    assert.deepEqual(await points(), { 'Lucía': 2, Hugo: 10, Martina: 0, Pablo: 0 });
     assert.equal(classroom.activity, null);
 
     const [mission] = await api.listMissions();
@@ -227,6 +231,87 @@ test('sin conexión se usa la copia local del horario', async (t) => {
     });
     assert.equal(await offline.loadSchedule(), 'copia local');
     assert.equal(offline.schedule.slots.length, 5);
+});
+
+test('el dispositivo recoge los cambios del horario hechos en el panel', async (t) => {
+    const { api, classroom, clock, events } = await setup(t, { hh: 8, mm: 30 });
+    assert.equal((await classroom.handleCard('PROF-ANA')).kind, 'rejected', 'a las 8:30 no hay clase');
+
+    const { slots } = await api.getSchedule();
+    await api.request('PUT', '/schedule', { slots: [{ days: ['lunes'], start: '08:00', end: '09:00', teacherId: 'prof-ana', subject: 'musica' }, ...slots] });
+
+    clock.advance(30 * 1000);
+    await classroom.tick();
+    assert.ok(!kinds(events).includes('schedule-updated'), 'todavía no ha pasado el intervalo de recarga');
+
+    clock.advance(30 * 1000);
+    await classroom.tick();
+    assert.ok(kinds(events).includes('schedule-updated'));
+    const start = await classroom.handleCard('PROF-ANA');
+    assert.equal(start.kind, 'listening');
+    assert.equal(classroom.session.subject, 'musica');
+});
+
+test('si no se detecta la actividad pero ha salido un alumno, el profesor la cierra como ejercicio', async (t) => {
+    const { api, classroom } = await setup(t);
+    await classroom.handleCard('PROF-ANA');
+    await classroom.handlePhrase('Venga chicos atentos ahora');
+    await classroom.handleCard('ALU-001');
+    await classroom.handleCard('ALU-002');
+
+    const closed = await classroom.handleCard('PROF-ANA');
+    assert.equal(closed.kind, 'confirmed');
+    assert.equal(closed.defaulted, true);
+    assert.equal(closed.mission.title, 'Ejercicio de Matemáticas');
+    assert.equal(closed.mission.modality, 'individual');
+    const points = Object.fromEntries((await api.listStudents()).map((s) => [s.name, s.points]));
+    assert.equal(points.Hugo, 10);
+    assert.equal(points['Lucía'], 2);
+});
+
+test('una misión que no se confirma da los puntos de intento a quien salió', async (t) => {
+    const { api, classroom, clock } = await setup(t);
+    await classroom.handleCard('PROF-ANA');
+    await classroom.handleCard('ALU-003');
+    clock.advance(15 * 60 * 1000);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.equal(classroom.activity, null);
+
+    const [mission] = await api.listMissions();
+    assert.equal(mission.status, 'unconfirmed');
+    assert.match(mission.reason, /15 minutos/);
+    assert.deepEqual(mission.participants, []);
+    assert.equal((await api.listStudents()).find((s) => s.name === 'Martina').points, 2);
+});
+
+test('al acabar la franja con alumnos apuntados la misión queda sin confirmar', async (t) => {
+    const { api, classroom, clock, events } = await setup(t, { hh: 10, mm: 50 });
+    await classroom.handleCard('PROF-ANA');
+    await classroom.handlePhrase('Que salga alguien a la pizarra');
+    await classroom.handleCard('ALU-002');
+    clock.set(11, 0);
+    await classroom.tick();
+    assert.ok(kinds(events).includes('unconfirmed'));
+    const [mission] = await api.listMissions();
+    assert.equal(mission.title, 'Pizarra de Ciencias');
+    assert.equal((await api.listStudents()).find((s) => s.name === 'Hugo').points, 2);
+});
+
+test('las tarjetas no válidas aparecen en el registro del panel', async (t) => {
+    const { LiveReporter } = require('../src/live');
+    const { api, classroom } = await setup(t, { hh: 8, mm: 30 });
+    const reporter = new LiveReporter(classroom, api);
+    await reporter.start();
+    t.after(() => reporter.stop());
+
+    assert.equal((await classroom.handleCard('ALU-001')).status, 'sin-sesion');
+    assert.equal((await classroom.handleCard('NO-EXISTE')).kind, 'unknown-card');
+    await reporter.send();
+
+    const { feed } = (await api.avatar()).live;
+    assert.match(feed[0].text, /Tarjeta NO-EXISTE no registrada/);
+    assert.match(feed[1].text, /Lucía: no hay ninguna clase en marcha/);
+    assert.ok(feed[0].warn && feed[1].warn);
 });
 
 test('con la hora sin sincronizar no se inicia la sesión', async (t) => {

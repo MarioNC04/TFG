@@ -21,7 +21,10 @@
     "ALU-001": { "role": "student", "studentId": "alu-001" },
     "ALU-002": { "role": "student", "studentId": "alu-002" },
     "ALU-003": { "role": "student", "studentId": "alu-003" },
-    "ALU-004": { "role": "student", "studentId": "alu-004" }
+    "ALU-004": { "role": "student", "studentId": "alu-004" },
+    "64CA69EF": { "role": "teacher", "teacherId": "prof-ana" },
+    "444D67EF": { "role": "student", "studentId": "alu-001" },
+    "342D66EF": { "role": "student", "studentId": "alu-002" }
   },
   "students": [
     { "id": "alu-001", "name": "Lucía", "points": 0, "achievements": [], "history": [] },

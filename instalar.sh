@@ -57,6 +57,12 @@ else
     sudo apt install -y alsa-utils sox espeak python3-venv unzip
 fi
 
+# Lector NFC PC/SC (el del proyecto): servicio pcscd y cabeceras para compilar
+# el paquete nfc-pcsc. pcsc_scan sirve para comprobar que lee las tarjetas.
+print_status "Instalando el soporte del lector NFC (PC/SC)..."
+sudo apt install -y pcscd libpcsclite-dev pcsc-tools build-essential python3
+sudo systemctl enable --now pcscd
+
 print_step "[3/7] Verificando/Instalando Node.js..."
 # Verificar si Node.js ya está instalado
 if command -v node &> /dev/null; then
@@ -181,6 +187,7 @@ print_status "📋 Verificando paquetes instalados:"
 node -e "try { require('@google-cloud/speech'); console.log('✅ @google-cloud/speech OK'); } catch(e) { console.log('❌ @google-cloud/speech FALLO'); }" 2>/dev/null
 node -e "try { require('say'); console.log('✅ say OK'); } catch(e) { console.log('❌ say FALLO'); }" 2>/dev/null
 ./.venv/bin/python -c "import vosk; print('✅ vosk OK')" 2>/dev/null || echo "❌ vosk FALLO"
+node -e "try { require('nfc-pcsc'); console.log('✅ nfc-pcsc OK (lector NFC)'); } catch(e) { console.log('❌ nfc-pcsc FALLO: el lector NFC no funcionará; prueba: npm install nfc-pcsc'); }" 2>/dev/null
 
 echo
 print_status "🔧 Verificando sistema de audio..."

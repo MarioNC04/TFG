@@ -12,6 +12,18 @@ const SUBJECT_EXPERT_THRESHOLD = 3;
 const STREAK_THRESHOLD = 5;
 const STAR_POINTS = 100;
 
+/**
+ * Catálogo para el panel: qué logros hay y cómo se consiguen. Los textos usan
+ * las mismas constantes que evaluateAchievements, así no se desincronizan.
+ */
+const CATALOG = [
+    { id: 'voluntario-valiente', icon: '🙋', title: 'Voluntario Valiente', howTo: 'Completar tu primera misión individual: salir, hacerla y ser el último en pasar la tarjeta antes de que el profesor la cierre.' },
+    { id: 'trabajo-en-equipo', icon: '🤝', title: 'Trabajo en Equipo', howTo: 'Participar en tu primera misión de toda la clase.' },
+    { id: 'experto', icon: '🎓', title: 'Experto en…', howTo: `Completar ${SUBJECT_EXPERT_THRESHOLD} misiones de una misma asignatura. Hay uno por cada asignatura: Experto en Matemáticas, en Lengua…` },
+    { id: 'racha-imparable', icon: '🔥', title: 'Racha Imparable', howTo: `Completar ${STREAK_THRESHOLD} misiones en total.` },
+    { id: 'estrella-de-clase', icon: '⭐', title: 'Estrella de la Clase', howTo: `Llegar a ${STAR_POINTS} puntos.` }
+];
+
 function evaluateAchievements(student, completedMissions) {
     const earned = [];
     const individual = completedMissions.filter((m) => m.modality === 'individual');
@@ -47,4 +59,4 @@ function evaluateAchievements(student, completedMissions) {
     return earned;
 }
 
-module.exports = { evaluateAchievements };
+module.exports = { evaluateAchievements, CATALOG };

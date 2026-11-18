@@ -10,6 +10,10 @@ function describeEvent(event, { manual = false } = {}) {
     switch (event.kind) {
         case 'rejected':
             return `⛔ ${event.teacher.name}: ${event.reason}`;
+        case 'unknown-card':
+            return `❓ Tarjeta ${event.uid} no registrada`;
+        case 'card-error':
+            return `⚠️ No se ha podido comprobar la tarjeta ${event.uid}: ${event.message}`;
         case 'session-start': {
             const { teacher, subject, slot, substitute } = event;
             return `👩‍🏫 Sesión iniciada: ${teacher.name} · ${subjectLabel(subject)} (${slot.start}-${slot.end})${substitute ? ' · sustituye al profesor del horario' : ''}`;
@@ -29,6 +33,7 @@ function describeEvent(event, { manual = false } = {}) {
         case 'student':
             return describeStudent(event);
         case 'confirmed':
+        case 'unconfirmed':
             return describeConfirmed(event);
         case 'discarded':
             return `🗑️  Misión descartada${event.title ? ` (${event.title})` : ''}: ${event.reason}`;
@@ -42,6 +47,8 @@ function describeEvent(event, { manual = false } = {}) {
             const pending = remaining > 0 ? ` Quedan ${remaining} misión/es sin enviar (se enviarán al volver a encenderla).` : '';
             return `🏁 Fin del horario. Todo cerrado${sent ? ` y ${sent} misión/es sincronizadas` : ''}.${pending}\n   Ya se puede apagar la Raspberry Pi con el botón.`;
         }
+        case 'schedule-updated':
+            return `📅 Horario actualizado desde el panel (${event.slots} franja/s)`;
         case 'error':
             return `❌ ${event.message}`;
         default:
@@ -55,11 +62,13 @@ function describeStudent({ student, status, attempts }) {
     if (status === 'sin-actividad') return `🙋 ${name}: no hay ninguna misión en curso`;
     if (status === 'grupal') return `🙋 ${name}: es una misión de toda la clase, no hace falta pasar la tarjeta`;
     const before = attempts.length ? ` (antes: ${attempts.map((s) => s.name).join(', ')}, cuentan como intento)` : '';
-    return `🙋 ${name} ha salido${before}`;
+    return `🙋 ${name} ha salido${before}. Los puntos se darán al confirmar la misión.`;
 }
 
-function describeConfirmed({ mission, results, queued }) {
-    const lines = [`✅ Misión cerrada: ${mission.title} [${modalityLabel(mission.modality)}]`];
+function describeConfirmed({ kind, mission, results, queued, defaulted, reason }) {
+    const lines = kind === 'unconfirmed'
+        ? [`⌛ Misión sin confirmar: ${mission.title} (${reason}). Quien salió recibe los puntos de intento.`]
+        : [`✅ Misión cerrada: ${mission.title} [${modalityLabel(mission.modality)}]${defaulted ? ' · no se detectó la actividad, se registra como ejercicio' : ''}`];
     if (queued) {
         lines.push('   📦 Sin conexión: se enviará a TecnoCRA al sincronizar (los puntos se darán entonces)');
         return lines.join('\n');

@@ -16,6 +16,7 @@ const { loadConfig } = require('./src/config');
 const { ApiClient } = require('./src/api/client');
 const { MissionInterpreter } = require('./src/missions/interpreter');
 const { Classroom } = require('./src/classroom');
+const { LiveReporter } = require('./src/live');
 const { Recorder } = require('./src/audio/recorder');
 const { SpeechRecognizer } = require('./src/audio/recognizer');
 const { createListener } = require('./src/audio/listener');
@@ -76,6 +77,8 @@ async function main() {
     nfc.start();
     cli.start();
     classroom.start();
+    // Estado en directo para el panel de TecnoCRA (misión abierta, temporizador...).
+    new LiveReporter(classroom, api).start();
     classroom.tick().catch(() => {});
 }
 

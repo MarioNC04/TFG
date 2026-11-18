@@ -50,6 +50,8 @@ class ApiClient {
     listMissions() { return this.request('GET', '/missions'); }
     reward(studentId, points, reason) { return this.request('POST', `/students/${studentId}/rewards`, { points, reason }); }
     avatar() { return this.request('GET', '/avatar'); }
+    /** Estado en directo del aula para el panel. */
+    reportLive(state) { return this.request('PUT', '/live', state); }
 
     /**
      * Envía una misión cerrada por el profesor. Si no hay conexión la deja en

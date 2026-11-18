@@ -13,13 +13,15 @@ Una Raspberry Pi en el aula escucha al profesor solo cuando este pasa su **tarje
    - Por defecto la misión es **individual**, salvo que se diga que es para toda la clase.
    - Los datos pueden llegar en varias frases.
    - Las frases que no aportan nada se descartan en el acto.
-   - Si en 15 minutos no se obtiene el tipo, la misión se descarta.
-4. **Los alumnos que salen pasan su tarjeta.** En una misión de toda la clase no hace falta.
-5. **El profesor la cierra con su tarjeta.** La misión se envía a TecnoCRA y se reparten los puntos:
+   - Si en 15 minutos no se obtiene el tipo y no ha salido nadie, la misión se descarta.
+4. **Los alumnos que salen pasan su tarjeta.** Todavía no reciben puntos: el panel muestra entre paréntesis los que recibirán si se confirma (el último +10, los anteriores +2). En una misión de toda la clase no hace falta.
+5. **El profesor la confirma con su tarjeta.** Solo entonces se envía a TecnoCRA y se reparten los puntos:
    - **individual:** el último alumno que pasó la tarjeta la completa y recibe 10 puntos; los anteriores cuentan como intento y reciben 2;
+   - **sin actividad detectada:** si el profesor pasa su tarjeta mientras todavía escucha pero ya ha salido algún alumno, se confirma como **ejercicio** individual, para que el alumno no pierda sus puntos porque el reconocimiento de voz no entendiera la frase;
    - **toda la clase:** todos los alumnos reciben 5 puntos;
    - **sin alumnos:** si no salió nadie, la misión se descarta.
-6. **Siguiente misión.** Otra pasada de la tarjeta empieza una nueva misión. Si se pasa mientras todavía escucha, la cancela.
+6. **Siguiente misión.** Otra pasada de la tarjeta empieza una nueva misión. Si se pasa mientras todavía escucha y no ha salido nadie, la cancela.
+   - **Misión sin confirmar:** si la misión termina sin la tarjeta del profesor (15 minutos de escucha, fin de la franja, otro profesor…) pero ya habían salido alumnos, se registra como «sin confirmar» y cada uno recibe los 2 puntos de intento.
 7. **Fin de la franja.** Si la siguiente franja es del mismo profesor, solo cambia la asignatura. Si no, la sesión se cierra hasta que pase la tarjeta el siguiente profesor. Si pasa otro profesor antes, la sesión anterior se cierra.
 8. **Fin del horario.** Se cierra todo, se sincroniza la cola sin conexión y se avisa de que ya se puede apagar.
 
@@ -83,7 +85,7 @@ registrar profesor 04A1B2C3 Ana matematicas,ciencias
 registrar alumno 04D5E6F7 Lucía
 ```
 
-El horario se cambia con `PUT /api/schedule` o editando `schedule` en `server/seed.json` y borrando `data/db.json`.
+El horario se ve y se edita en el panel web (http://localhost:3000/, desplegable «Horario del aula»). Es un cuadro semanal: una columna por día, una fila por franja horaria y, en cada celda, la asignatura y el profesor. Con **Editar** cada celda pasa a tener dos desplegables (profesor y asignatura; «Libre» si no hay clase), las horas de cada franja se cambian en la columna de la derecha y se pueden añadir o quitar franjas; **Guardar** lo envía al servidor y **Cancelar** descarta los cambios. El servidor lo valida (horas HH:MM, inicio antes que fin, sin franjas solapadas) y lo guarda en `data/db.json`, incluidas las franjas vacías. El dispositivo del aula vuelve a pedir el horario cada minuto (`session.scheduleRefreshSeconds`), así que recoge los cambios sin reiniciarlo; con `horario actualizar` se recoge al momento. También se puede cambiar con `PUT /api/schedule`, o editando `schedule` en `server/seed.json` y borrando `data/db.json`.
 
 ## Uso
 
@@ -92,6 +94,10 @@ npm run server   # terminal 1: API simulada + panel del zorro en http://localhos
 npm start        # terminal 2: sistema del aula
 npm run demo     # demo sin hardware: una mañana de clase con un reloj simulado
 ```
+
+El panel (http://localhost:3000/) se actualiza en tiempo real: el servidor avisa de cada cambio por Server-Sent Events (`/api/events`). El dispositivo del aula envía su estado en directo (`PUT /api/live`) cada vez que pasa algo y cada 20 segundos, y el panel muestra en «Ahora en el aula» la sesión en curso, la misión abierta con su temporizador (lo que queda de escucha o el tiempo que lleva abierta), los alumnos que han salido y quién la completaría si se cerrase ahora. En el ranking, entre paréntesis, los puntos que recibirá cada alumno si se confirma la misión abierta. Si el dispositivo deja de enviar su estado durante 90 segundos, el panel lo indica. El horario está en un desplegable encima de «Lo último en el aula». Debajo del ranking, el botón **Reiniciar ranking, misiones y logros** (pide confirmación) pone los puntos a 0 y borra los logros y las misiones registradas; se conservan los alumnos, las tarjetas y el horario. La sección **Logros** muestra todos los logros, cómo se consigue cada uno y qué alumnos lo tienen, junto con los puntos de cada tipo de misión.
+
+Si `npm run server` está en marcha, `npm run demo` trabaja contra ese servidor y va paso a paso para que el panel se actualice en directo; las misiones, puntos y logros quedan guardados en `data/db.json`. Con `npm run demo -- --memoria` usa un servidor en memoria que no guarda nada, y con `-- --rapido` no hace pausas. La demo usa siempre el horario de ejemplo de `server/seed.json`, sin tocar el horario guardado.
 
 Salida de `npm run demo` (resumida):
 
@@ -104,9 +110,9 @@ Salida de `npm run demo` (resumida):
 [09:32] 🗣️  "Que salga alguien a la pizarra a corregir el ejercicio"
 🎯 Misión preparada: Pizarra de Matemáticas [individual]. Quien salga pasa su tarjeta; el profesor la cierra con la suya.
 [09:32] 💳 ALU-001
-🙋 Lucía ha salido
+🙋 Lucía ha salido. Los puntos se darán al confirmar la misión.
 [09:32] 💳 ALU-002
-🙋 Hugo ha salido (antes: Lucía, cuentan como intento)
+🙋 Hugo ha salido (antes: Lucía, cuentan como intento). Los puntos se darán al confirmar la misión.
 [09:32] 💳 PROF-ANA
 ✅ Misión cerrada: Pizarra de Matemáticas [individual]
    ⭐ Hugo la ha completado: +10 puntos (total 10)
@@ -142,12 +148,17 @@ Comandos: `ayuda`, `estado`, `horario [actualizar]`, `misiones`, `alumnos`, `pun
 |---|---|---|
 | GET | `/api/health` | Estado |
 | GET | `/api/teachers`, `/api/teachers/:id` | Profesores y sus asignaturas |
-| GET/PUT | `/api/schedule` | Horario del aula `{ classroom, slots: [{ days, start, end, teacherId, subject }] }` |
+| GET/PUT | `/api/schedule` | Horario del aula `{ classroom, periods: [{ start, end }], slots: [{ days, start, end, teacherId, subject }] }` (el PUT lo usa el editor del panel) |
+| GET | `/api/subjects` | Asignaturas conocidas, para el editor del horario |
+| GET | `/api/achievements` | Logros que existen, cómo se consiguen y quién los tiene, y los puntos por tipo de misión |
+| POST | `/api/reset` | Puntos, logros y misiones a cero (se conservan alumnos, tarjetas y horario) |
+| GET/PUT | `/api/live` | Estado en directo del aula (sesión, misión abierta, temporizador, últimos avisos) |
+| GET | `/api/events` | Server-Sent Events: avisa al panel de cada cambio |
 | GET/POST | `/api/cards`, GET `/api/cards/:uid` | Tarjetas de profesor y alumno |
 | GET | `/api/students`, `/api/students/:id` | Alumnos, puntos y logros |
 | POST | `/api/students/:id/rewards` | Puntos del profesor `{ points, reason }` |
 | GET | `/api/missions`, `/api/missions/:id` | Misiones registradas |
-| POST | `/api/missions/confirmed` | Misión cerrada por el profesor `{ id, title, subject, type, modality, teacherId, completedBy, attempts }` |
+| POST | `/api/missions/confirmed` | Misión cerrada por el profesor `{ id, title, subject, type, modality, teacherId, completedBy, attempts }`; con `confirmed: false` registra una misión que se cerró sola (los que salieron reciben 2 puntos) |
 | POST | `/api/interpret` | Interpretar frase (simula IA / Node-RED) |
 | GET | `/api/avatar` | Estado del zorro: mensaje, últimas misiones, ranking, logros |
 
